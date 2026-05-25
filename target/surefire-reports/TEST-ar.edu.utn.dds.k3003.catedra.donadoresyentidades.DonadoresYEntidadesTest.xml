@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.343" tests="22" errors="0" skipped="22" failures="0">
+  <properties/>
+  <testcase name="testNoPuedeDonar" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testObtenerQuejasDeFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testBuscarDonadorPorID" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testObtenerEstadisticasDonador" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testModificarEstadoFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testModificarCategoriaFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testSatisfacerNecesidadFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testPuedeDonarFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testPuedeDonar" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testBuscarDonadorPorIDFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testAgregarQueja" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testAgregarDonador" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testObtenerNecesidadesInsatisfechasDe" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testRegistrarNecesidad" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testModificarCategoria" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testAgregarEntidad" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testRegistrarNecesidadFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testAgregarQuejaFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testAgregarEntidadFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testAgregarDonadorFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testBuscarEntidadPorIDFallido" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+  <testcase name="testBuscarEntidadPorID" classname="ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest" time="0.0">
+    <skipped message="@EnabledIf(&quot;ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion&quot;) evaluated to false"/>
+  </testcase>
+</testsuite>
