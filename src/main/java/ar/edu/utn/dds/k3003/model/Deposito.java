@@ -27,6 +27,19 @@ public class Deposito {
         this.stockActual = stockActual != null ? stockActual : new ArrayList<>();
     }
 
+    public void agregarPaquete(Paquete paquete) {
+        if (paquete == null) throw new IllegalArgumentException("Paquete inválido");
+        this.stockActual.add(paquete);
+    }
+
+    public int ocupacionActual() {
+        return stockActual.stream().mapToInt(Paquete::getCantidad).sum();
+    }
+
+    public int capacidadDisponible() {
+        return capacidadMaxima - ocupacionActual();
+    }
+
     public String getId() {
         return id;
     }

@@ -30,6 +30,10 @@ public class LogisticaService {
     fachada.eliminarDeposito(id);
   }
 
+  public void cambiarAlgoritmo(String depositoId, TipoAlgoritmoEnum algoritmo) {
+    fachada.setAlgoritmoMM(depositoId, algoritmo);
+  }
+
   public DepositoDTO gestionarDonacion(String depositoID, String donacionID, String productoID, Integer cantidad) {
     return fachada.gestionarDonacion(depositoID, donacionID, productoID, cantidad);
   }

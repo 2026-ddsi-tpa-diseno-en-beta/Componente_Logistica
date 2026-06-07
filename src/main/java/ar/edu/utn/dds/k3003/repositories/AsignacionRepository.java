@@ -5,13 +5,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AsignacionRepository {
+  Asignacion save(Asignacion asignacion);
+
   Optional<Asignacion> findById(String id);
 
   Optional<Asignacion> findByPaqueteId(String paqueteId);
 
   List<Asignacion> findAll();
 
-  Asignacion save(Asignacion asignacion);
+  void deleteAll();
 
-  Asignacion deleteById(String id);
+  long count();
 }

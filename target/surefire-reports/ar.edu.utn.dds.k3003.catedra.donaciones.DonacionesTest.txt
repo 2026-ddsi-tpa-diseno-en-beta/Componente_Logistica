@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: ar.edu.utn.dds.k3003.catedra.donaciones.DonacionesTest
--------------------------------------------------------------------------------
-Tests run: 10, Failures: 0, Errors: 0, Skipped: 10, Time elapsed: 0.288 s -- in ar.edu.utn.dds.k3003.catedra.donaciones.DonacionesTest

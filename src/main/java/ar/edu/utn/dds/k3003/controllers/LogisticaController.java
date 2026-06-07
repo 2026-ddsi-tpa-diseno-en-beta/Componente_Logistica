@@ -2,9 +2,14 @@ package ar.edu.utn.dds.k3003.controllers;
 
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.DepositoRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.GestionDonacionRequest;
+import ar.edu.utn.dds.k3003.controllers.requests.logistica.AlgoritmoDepositoRequest;
+
+import ar.edu.utn.dds.k3003.controllers.responses.MensajeResponse;
+
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.DepositoDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
 
 import ar.edu.utn.dds.k3003.services.LogisticaService;
 
@@ -14,7 +19,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.validation.Valid;
+
 import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,7 +44,7 @@ public class LogisticaController {
       description = "Depósito creado correctamente",
       content = @Content(schema = @Schema(implementation = DepositoDTO.class)))
   @PostMapping("/depositos")
-  public ResponseEntity<DepositoDTO> crearDeposito(@RequestBody DepositoRequest request) {
+  public ResponseEntity<DepositoDTO> crearDeposito(@Valid @RequestBody DepositoRequest request) {
     DepositoDTO deposito =
         service.crearDeposito(request.nombre(), request.direccion(), request.capacidadMaxima());
 
@@ -60,29 +68,29 @@ public class LogisticaController {
       content = @Content(schema = @Schema(implementation = DepositoDTO.class)))
   @ApiResponse(responseCode = "404", description = "Depósito no encontrado")
   @GetMapping("/depositos/{id}")
-  public ResponseEntity<?> buscarDeposito(@PathVariable String id) {
-    try {
-      return ResponseEntity.ok(service.buscarDeposito(id));
-    } catch (Exception ex) {
-      return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body("Depósito no encontrado");
-    }
+  public ResponseEntity<DepositoDTO> buscarDeposito(@PathVariable String id) {
+    return ResponseEntity.ok(service.buscarDeposito(id));
   }
 
   @Operation(summary = "Eliminar un depósito")
   @ApiResponse(responseCode = "200", description = "Depósito eliminado correctamente")
   @ApiResponse(responseCode = "404", description = "Depósito no encontrado")
   @DeleteMapping("/depositos/{id}")
-  public ResponseEntity<?> eliminarDeposito(@PathVariable String id) {
-    try {
-      service.eliminarDeposito(id);
-      return ResponseEntity.ok("Depósito eliminado correctamente");
-    } catch (Exception ex) {
-      return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body("Depósito no encontrado");
-    }
+  public ResponseEntity<MensajeResponse> eliminarDeposito(@PathVariable String id) {
+    service.eliminarDeposito(id);
+    return ResponseEntity.ok(new MensajeResponse("Depósito eliminado correctamente"));
+  }
+
+  @Operation(summary = "Cambiar algoritmo de matchmaking de un depósito")
+  @ApiResponse(responseCode = "200", description = "Algoritmo actualizado correctamente")
+  @ApiResponse(responseCode = "404", description = "Depósito no encontrado")
+  @PatchMapping("/depositos/{id}/algoritmo")
+  public ResponseEntity<MensajeResponse> cambiarAlgoritmo(
+      @PathVariable("id") String depositoID,
+      @Valid @RequestBody AlgoritmoDepositoRequest request
+  ) {
+    service.cambiarAlgoritmo(depositoID, request.algoritmo());
+    return ResponseEntity.ok(new MensajeResponse("Algoritmo actualizado correctamente"));
   }
 
   @Operation(summary = "Gestionar una donación")
@@ -93,29 +101,14 @@ public class LogisticaController {
   @ApiResponse(responseCode = "400", description = "Datos inválidos para gestionar la donación")
   @ApiResponse(responseCode = "404", description = "Depósito no encontrado")
   @PostMapping("/depositos/{id}/donacion")
-  public ResponseEntity<?> gestionarDonacion(
+  public ResponseEntity<DepositoDTO> gestionarDonacion(
       @PathVariable("id") String depositoID,
-      @RequestBody GestionDonacionRequest request) {
-    try {
-      DepositoDTO deposito =
-          service.gestionarDonacion(
-              depositoID, 
-              request.donacionID(), 
-              request.productoID(), 
-              request.cantidad());
+      @RequestBody GestionDonacionRequest request
+  ) {
+    DepositoDTO deposito =
+        service.gestionarDonacion(depositoID, request.donacionID(), request.productoID(), request.cantidad());
 
-      return ResponseEntity.status(HttpStatus.CREATED).body(deposito);
-    } catch (IllegalArgumentException ex) {
-
-      return ResponseEntity
-          .status(HttpStatus.BAD_REQUEST)
-          .body(ex.getMessage());
-    } catch (Exception ex) {
-
-      return ResponseEntity
-          .status(HttpStatus.NOT_FOUND)
-          .body("Depósito no encontrado");
-    }
+    return ResponseEntity.status(HttpStatus.CREATED).body(deposito);
   }
 
   @Operation(summary = "Obtener una asignación por ID")
@@ -125,31 +118,16 @@ public class LogisticaController {
       content = @Content(schema = @Schema(implementation = AsignacionDTO.class)))
   @ApiResponse(responseCode = "404", description = "Asignación no encontrada")
   @GetMapping("/asignaciones/{id}")
-  public ResponseEntity<?> buscarAsignacion(@PathVariable String id) {
-    try {
-      return ResponseEntity.ok(service.buscarAsignacion(id));
-    } catch (Exception ex) {
-      return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body("Asignación no encontrada");
-    }
+  public ResponseEntity<AsignacionDTO> buscarAsignacion(@PathVariable String id) {
+    return ResponseEntity.ok(service.buscarAsignacion(id));
   }
 
   @Operation(summary = "Registrar la entrega de un paquete")
   @ApiResponse(responseCode = "201", description = "Entrega registrada correctamente")
   @ApiResponse(responseCode = "404", description = "Paquete o asignación no encontrados")
   @PostMapping("/entregas")
-  public ResponseEntity<?> reportarEntrega(@RequestBody PaqueteDTO paqueteDTO) {
-    try {
-      service.reportarEntrega(paqueteDTO);
-
-      return ResponseEntity
-          .status(HttpStatus.CREATED)
-          .body("Entrega registrada correctamente");
-    } catch (Exception ex) {
-      return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body("Paquete o asignación no encontrados");
-    }
+  public ResponseEntity<MensajeResponse> reportarEntrega(@RequestBody PaqueteDTO paqueteDTO) {    
+    service.reportarEntrega(paqueteDTO);
+    return ResponseEntity.ok(new MensajeResponse("Entrega registrada correctamente"));
   }
 }

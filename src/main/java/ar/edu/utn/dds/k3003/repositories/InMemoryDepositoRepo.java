@@ -40,9 +40,18 @@ public class InMemoryDepositoRepo implements DepositoRepository {
     }
 
     @Override
-    public Deposito deleteById(String id) {
-        val deposito = this.findById(id);
+    public void deleteById(String id) {
+        var deposito = this.findById(id);
         this.depositos.remove(deposito.get());
-        return deposito.get();
+    }
+
+    @Override
+    public void deleteAll() {
+        this.depositos.clear();
+    }
+
+    @Override
+    public long count() {
+        return this.depositos.size();
     }
 }

@@ -43,10 +43,19 @@ public class InMemoryAsignacionRepo implements AsignacionRepository {
         return asignacion;
     }
 
-    @Override
     public Asignacion deleteById(String id) {
         var asignacion = this.findById(id);
         this.asignaciones.remove(asignacion.get());
         return asignacion.get();
+    }
+
+    @Override
+    public void deleteAll() {
+        this.asignaciones.clear();
+    }
+
+    @Override
+    public long count() {
+        return this.asignaciones.size();
     }
 }

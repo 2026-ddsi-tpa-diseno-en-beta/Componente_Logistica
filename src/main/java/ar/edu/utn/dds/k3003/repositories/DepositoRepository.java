@@ -5,11 +5,15 @@ import java.util.Optional;
 import java.util.List;
 
 public interface DepositoRepository {
-  List<Deposito> findAll();
+  Deposito save(Deposito deposito);
 
   Optional<Deposito> findById(String id);
 
-  Deposito save(Deposito deposito);
+  List<Deposito> findAll();
 
-  Deposito deleteById(String id);
+  void deleteById(String id);
+
+  void deleteAll();
+
+  long count();
 }
