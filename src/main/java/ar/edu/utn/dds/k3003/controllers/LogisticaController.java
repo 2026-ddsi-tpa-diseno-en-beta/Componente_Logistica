@@ -12,6 +12,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
 
 import ar.edu.utn.dds.k3003.services.LogisticaService;
+import ar.edu.utn.dds.k3003.metrics.LogisticaMetrics;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -33,9 +34,11 @@ import org.springframework.web.bind.annotation.*;
 public class LogisticaController {
 
   private final LogisticaService service;
+  private final LogisticaMetrics metrics;
 
-  public LogisticaController(LogisticaService service) {
+  public LogisticaController(LogisticaService service, LogisticaMetrics metrics) {
     this.service = service;
+    this.metrics = metrics;
   }
 
   @Operation(summary = "Crear un depósito")
@@ -47,6 +50,8 @@ public class LogisticaController {
   public ResponseEntity<DepositoDTO> crearDeposito(@Valid @RequestBody DepositoRequest request) {
     DepositoDTO deposito =
         service.crearDeposito(request.nombre(), request.direccion(), request.capacidadMaxima());
+    
+    metrics.depositoCreado();
 
     return ResponseEntity.status(HttpStatus.CREATED).body(deposito);
   }
@@ -108,6 +113,8 @@ public class LogisticaController {
     DepositoDTO deposito =
         service.gestionarDonacion(depositoID, request.donacionID(), request.productoID(), request.cantidad());
 
+    metrics.donacionGestionada();
+
     return ResponseEntity.status(HttpStatus.CREATED).body(deposito);
   }
 
@@ -128,6 +135,7 @@ public class LogisticaController {
   @PostMapping("/entregas")
   public ResponseEntity<MensajeResponse> reportarEntrega(@RequestBody PaqueteDTO paqueteDTO) {    
     service.reportarEntrega(paqueteDTO);
+    metrics.entregaReportada();
     return ResponseEntity.ok(new MensajeResponse("Entrega registrada correctamente"));
   }
 }

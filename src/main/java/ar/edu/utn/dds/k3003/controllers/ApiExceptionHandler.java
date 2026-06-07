@@ -11,25 +11,36 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import ar.edu.utn.dds.k3003.metrics.LogisticaMetrics;
+
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+  private final LogisticaMetrics metrics;
+
+  public ApiExceptionHandler(LogisticaMetrics metrics) {
+    this.metrics = metrics;
+  }
 
   public record ErrorResponse(LocalDateTime timestamp, String code, String message, String path) {}
 
   @ExceptionHandler(ResourceNotFoundException.class)
   public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
+    metrics.error();
     return ResponseEntity.status(HttpStatus.NOT_FOUND)
         .body(new ErrorResponse(LocalDateTime.now(), "NOT_FOUND", ex.getMessage(), request.getRequestURI()));
   }
 
   @ExceptionHandler(ConflictException.class)
   public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
+    metrics.error();
     return ResponseEntity.status(HttpStatus.CONFLICT)
         .body(new ErrorResponse(LocalDateTime.now(), "CONFLICT", ex.getMessage(), request.getRequestURI()));
   }
 
   @ExceptionHandler(BusinessRuleException.class)
   public ResponseEntity<ErrorResponse> handleBusiness(BusinessRuleException ex, HttpServletRequest request) {
+    metrics.error();
     return ResponseEntity.badRequest()
         .body(new ErrorResponse(LocalDateTime.now(), "BUSINESS_RULE", ex.getMessage(), request.getRequestURI()));
   }
@@ -41,7 +52,23 @@ public class ApiExceptionHandler {
         .map(err -> err.getField() + ": " + err.getDefaultMessage())
         .orElse("Datos inválidos");
 
+    metrics.error();
     return ResponseEntity.badRequest()
         .body(new ErrorResponse(LocalDateTime.now(), "VALIDATION_ERROR", message, request.getRequestURI()));
+  }
+
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<ErrorResponse> handleUnexpected(
+      Exception ex,
+      HttpServletRequest request
+  ) {
+    metrics.error();
+
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(new ErrorResponse(
+            LocalDateTime.now(),
+            "INTERNAL_ERROR",
+            ex.getMessage(),
+            request.getRequestURI()));
   }
 }
