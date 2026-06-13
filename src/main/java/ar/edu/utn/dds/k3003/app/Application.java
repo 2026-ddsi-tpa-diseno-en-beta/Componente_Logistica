@@ -1,8 +1,8 @@
 package ar.edu.utn.dds.k3003.app;
 
 import ar.edu.utn.dds.k3003.Fachada;
-import ar.edu.utn.dds.k3003.integrations.FachadaDonacionesHttp;
-import ar.edu.utn.dds.k3003.integrations.FachadaDonadoresYEntidadesHttp;
+import ar.edu.utn.dds.k3003.integration.FachadaDonacionesHttp;
+import ar.edu.utn.dds.k3003.integration.FachadaDonadoresYEntidadesHttp;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Info;
 import org.springframework.beans.factory.annotation.Value;

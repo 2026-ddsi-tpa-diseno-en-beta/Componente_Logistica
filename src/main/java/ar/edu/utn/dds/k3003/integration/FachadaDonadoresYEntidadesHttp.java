@@ -1,4 +1,4 @@
-package ar.edu.utn.dds.k3003.integrations;
+package ar.edu.utn.dds.k3003.integration;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.DonadorDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.DonadorStatsDTO;

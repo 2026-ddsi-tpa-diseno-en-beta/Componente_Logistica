@@ -1,4 +1,4 @@
-package ar.edu.utn.dds.k3003.integracion;
+package ar.edu.utn.dds.k3003.integration;
 
 import java.time.LocalDate;
 import java.util.List;
