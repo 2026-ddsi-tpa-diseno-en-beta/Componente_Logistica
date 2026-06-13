@@ -223,12 +223,12 @@ public class Fachada implements FachadaLogistica {
     return mapper.toAsignacionDTO(asignacion);
   }
 
-  @Autowired(required = false)
+  @Autowired
   public void setFachadaDonadoresYEntidades(FachadaDonadoresYEntidades fachadaDonadoresYEntidades) {
     this.fachadaDonadores = fachadaDonadoresYEntidades;
   }
 
-  @Autowired(required = false)
+  @Autowired
   public void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones) {
     this.fachadaDonaciones = fachadaDonaciones;
   }
