@@ -6,7 +6,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMateri
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.DepositoDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
-import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsginacionEnum;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsignacionEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
 
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaLogistica;
@@ -29,12 +29,9 @@ import ar.edu.utn.dds.k3003.repositories.AsignacionRepository;
 import ar.edu.utn.dds.k3003.repositories.DepositoRepository;
 import ar.edu.utn.dds.k3003.repositories.LogisticaDataMapper;
 
-import ar.edu.utn.dds.k3003.repositories.InMemoryAsignacionRepo;
-import ar.edu.utn.dds.k3003.repositories.InMemoryDepositoRepo;
-import ar.edu.utn.dds.k3003.repositories.InMemoryDonadoresRepo;
-
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.NoSuchElementException;
 
 import org.springframework.stereotype.Service;
@@ -50,12 +47,6 @@ public class Fachada implements FachadaLogistica {
 
   private FachadaDonadoresYEntidades fachadaDonadores;
   private FachadaDonaciones fachadaDonaciones;
-
-  public Fachada() {
-    this.depositoRepo = new InMemoryDepositoRepo();
-    this.asignacionRepo = new InMemoryAsignacionRepo();
-    this.mapper = new LogisticaDataMapper();
-  }
 
   @Autowired
   public Fachada(
@@ -117,30 +108,37 @@ public class Fachada implements FachadaLogistica {
   @Override
   @Transactional
   public DepositoDTO gestionarDonacion(String depositoID, String donacionID, String productoID, Integer cantidad) {
+    if (donacionID == null || productoID == null || cantidad == null || cantidad <= 0)
+        throw new BusinessRuleException("Datos inválidos para gestionar la donación");
+
     Deposito deposito = depositoRepo.findById(depositoID)
         .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
-    if (donacionID == null || productoID == null || cantidad == null || cantidad <= 0)
-      throw new BusinessRuleException("Datos inválidos para gestionar la donación");
-
     asegurarIntegraciones();
-    List<NecesidadMaterialDTO> necesidades = fachadaDonadores.obtenerNecesidadesInsatisfechasDe(productoID);
-    if (necesidades == null || necesidades.isEmpty())
-      throw new ConflictException("No hay necesidades insatisfechas para ese producto");
 
-    if (deposito.capacidadDisponible() < cantidad)
-      throw new ConflictException("El depósito no tiene capacidad suficiente");
+    if (!deposito.tieneLugar(cantidad))
+        throw new ConflictException("El depósito no tiene capacidad suficiente");
 
-    Paquete paquete = new Paquete(donacionID, productoID, cantidad);
-    deposito.agregarPaquete(paquete);
+    List<NecesidadMaterialDTO> necesidades =
+        fachadaDonadores.obtenerNecesidadesInsatisfechasDe(productoID);
+
+    Paquete paquete = new Paquete(
+        donacionID,
+        productoID,
+        cantidad
+    );
+
+    deposito.almacenar(paquete);
 
     Deposito depositoGuardado = depositoRepo.save(deposito);
-    Paquete paquetePersistido = depositoGuardado.getStockActual().get(depositoGuardado.getStockActual().size() - 1);
+
+    Paquete paquetePersistido = depositoGuardado.getStockActual()
+        .get(depositoGuardado.getStockActual().size() - 1);
 
     ejecutarMatchmaking(
         depositoID,
         mapper.toPaqueteDTO(paquetePersistido),
-        necesidades
+        necesidades == null ? List.of() : necesidades
     );
 
     return mapper.toDepositoDTO(depositoGuardado);
@@ -148,39 +146,50 @@ public class Fachada implements FachadaLogistica {
 
   @Override
   @Transactional
-  public AsignacionDTO ejecutarMatchmaking(String depositoID, PaqueteDTO paqueteDTO, List<NecesidadMaterialDTO> necesidadesMateriales) {
+  public Optional<AsignacionDTO> ejecutarMatchmaking(String depositoID, PaqueteDTO paqueteDTO, List<NecesidadMaterialDTO> necesidadesMateriales) {
     if (depositoID == null || paqueteDTO == null)
-      throw new BusinessRuleException("Datos inválidos");
+        throw new BusinessRuleException("Datos inválidos");
 
     Deposito deposito = depositoRepo.findById(depositoID)
         .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
-    if (deposito.getTipoAlgoritmo() == null) 
-      throw new ConflictException("El depósito no tiene algoritmo configurado");
+    if (deposito.getTipoAlgoritmo() == null)
+        throw new ConflictException("El depósito no tiene algoritmo configurado");
 
-    EstrategiaMatchMaking estrategia = switch (deposito.getTipoAlgoritmo()) {
-      case SUB_ATENDIDOS -> new EstrategiaPrioridadASubAtendidos();
-      case PRIORIDAD_POR_SCORE -> new EstrategiaPrioridadPorScore();
-    };
+    ResultadoMatchmaking resultado = matchmakingService.procesar(
+        deposito.getTipoAlgoritmo(),
+        necesidadesMateriales,
+        paqueteDTO.productoID(),
+        paqueteDTO.cantidad()
+    );
 
-    Paquete paquete = mapper.toPaquete(paqueteDTO);
-    NecesidadMaterialDTO necesidadElegida = estrategia.elegir(necesidadesMateriales, paquete)
-        .orElseThrow(() -> new ConflictException("No se encontró una necesidad compatible"));
+    if (!resultado.tieneAsignacion())
+        return Optional.empty();
 
-    if (
-        necesidadElegida.tipo() == TipoNecesidadMaterialEnum.RECURRENTE
-        && paquete.getCantidad() < necesidadElegida.cantidadObjetivo()
-    ) 
-      throw new BusinessRuleException("No se permiten donaciones parciales para necesidades recurrentes");
+    NecesidadMaterialDTO necesidad = resultado.necesidad().orElseThrow();
 
     Asignacion asignacion = new Asignacion(
-        paquete.getId(),
-        necesidadElegida.id(),
+        paqueteDTO.id(),
+        necesidad.id(),
+        resultado.cantidadAsignada(),
+        OrigenAsignacion.MATCHMAKING,
         LocalDateTime.now(),
-        EstadoAsginacionEnum.ASIGNADA
+        EstadoAsignacionEnum.ASIGNADA
     );
 
     Asignacion guardada = asignacionRepo.save(asignacion);
+
+    if (resultado.cantidadSobrante() > 0) {
+        deposito.almacenar(
+            new Paquete(
+                paqueteDTO.donacionID(),
+                paqueteDTO.productoID(),
+                resultado.cantidadSobrante()
+            )
+        );
+        depositoRepo.save(deposito);
+    }
+
     return mapper.toAsignacionDTO(guardada);
   }
 
@@ -195,12 +204,12 @@ public class Fachada implements FachadaLogistica {
     Asignacion asignacion = asignacionRepo.findByPaqueteId(paqueteDTO.id())
         .orElseThrow(() -> new ResourceNotFoundException("Asignación no encontrada"));
 
-    if (asignacion.getEstado() != EstadoAsginacionEnum.ASIGNADA)
+    if (asignacion.getEstado() != EstadoAsignacionEnum.ASIGNADA)
       throw new ConflictException("La asignación no está en estado ASIGNADA");
 
     fachadaDonadores.satisfacerNecesidad(asignacion.getNecesidadId(), paqueteDTO.cantidad());
 
-    asignacion.cambiarEstado(EstadoAsginacionEnum.COMPLETADA);
+    asignacion.cambiarEstado(EstadoAsignacionEnum.COMPLETADA);
     asignacionRepo.save(asignacion);
 
     fachadaDonaciones.cambiarEstadoDeDonacion(paqueteDTO.donacionID(), EstadoDonacionEnum.ACEPTADA);

@@ -1,6 +1,6 @@
 package ar.edu.utn.dds.k3003.model;
 
-import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsginacionEnum;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsignacionEnum;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,7 +12,9 @@ public class Asignacion {
     private String paqueteId;
     private String necesidadId;
     private LocalDateTime fecha;
-    private EstadoAsginacionEnum estado;
+    private EstadoAsignacionEnum estado;
+    private Integer cantidadAsignada;
+    private OrigenAsignacion origen;
     private List<CambioEstadoAsignacion> historial = new ArrayList<>();
 
     public Asignacion
@@ -20,7 +22,7 @@ public class Asignacion {
         String paqueteId,
         String necesidadId,
         LocalDateTime fecha,
-        EstadoAsginacionEnum estado
+        EstadoAsignacionEnum estado
     ) {
         this.paqueteId = paqueteId;
         this.necesidadId = necesidadId;
@@ -29,7 +31,7 @@ public class Asignacion {
         this.historial.add(new CambioEstadoAsignacion(estado, fecha));
     }
 
-    public void cambiarEstado(EstadoAsginacionEnum nuevoEstado) {
+    public void cambiarEstado(EstadoAsignacionEnum nuevoEstado) {
         this.estado = nuevoEstado;
         this.historial.add(new CambioEstadoAsignacion(nuevoEstado, LocalDateTime.now()));
     }
@@ -62,12 +64,26 @@ public class Asignacion {
         this.fecha = fecha;
     }
 
-    public EstadoAsginacionEnum getEstado() {
+    public EstadoAsignacionEnum getEstado() {
         return estado;
     }
-    public void setEstado(EstadoAsginacionEnum estado) {
+    public void setEstado(EstadoAsignacionEnum estado) {
         this.estado = estado;
     } 
+
+    public Integer getCantidadAsignada() {
+        return cantidadAsignada;
+    }
+    public void setCantidadAsignada(Integer cantidadAsignada) {
+        this.cantidadAsignada = cantidadAsignada;
+    }
+
+    public OrigenAsignacion getOrigen() {
+        return origen;
+    }
+    public void setOrigen(OrigenAsignacion origen) {
+        this.origen = origen;
+    }
 
     public List<CambioEstadoAsignacion> getHistorial() {
         return historial;

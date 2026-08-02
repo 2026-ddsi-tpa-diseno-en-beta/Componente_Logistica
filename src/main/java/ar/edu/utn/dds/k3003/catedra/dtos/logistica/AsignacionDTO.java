@@ -1,5 +1,6 @@
 package ar.edu.utn.dds.k3003.catedra.dtos.logistica;
 
+import ar.edu.utn.dds.k3003.model.OrigenAsignacion;
 import java.time.LocalDateTime;
 
 public record AsignacionDTO(
@@ -7,4 +8,6 @@ public record AsignacionDTO(
     String paqueteID,
     String necesidadID,
     LocalDateTime fecha,
-    EstadoAsginacionEnum estado) {}
+    EstadoAsignacionEnum estado,
+    Integer cantidadAsignada,
+    OrigenAsignacion origen) {}

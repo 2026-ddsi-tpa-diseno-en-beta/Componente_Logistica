@@ -81,4 +81,19 @@ public class Deposito {
     public void setTipoAlgoritmo(TipoAlgoritmoEnum algoritmo) {
         this.algoritmo = algoritmo;
     }
+
+    public boolean tieneLugar(Integer cantidad) {
+        return capacidadDisponible() >= cantidad;
+    }
+
+    public void almacenar(Paquete paquete) {
+        stockActual.add(paquete);
+    }
+
+    public Integer stockDisponible(String productoId) {
+        return stockActual.stream()
+            .filter(paq -> paq.getId().equals(productoId))
+            .mapToInt(Paquete::getCantidad)
+            .sum();
+    }
 }

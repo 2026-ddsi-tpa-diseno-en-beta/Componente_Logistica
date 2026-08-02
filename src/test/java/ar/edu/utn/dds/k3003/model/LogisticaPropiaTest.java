@@ -10,7 +10,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDT
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.DepositoDTO;
-import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsginacionEnum;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsignacionEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
@@ -74,7 +74,7 @@ class LogisticaPropiaTest {
     assertNotNull(asignacion);
     assertEquals("paquete1", asignacion.paqueteID());
     assertEquals("necesidad1", asignacion.necesidadID());
-    assertEquals(EstadoAsginacionEnum.ASIGNADA, asignacion.estado());
+    assertEquals(EstadoAsignacionEnum.ASIGNADA, asignacion.estado());
 
     AsignacionDTO buscada = fachada.buscarAsignacionPorPaqueteID("paquete1");
     assertEquals(asignacion.id(), buscada.id());
@@ -152,7 +152,7 @@ class LogisticaPropiaTest {
     fachada.reportarEntrega(paquete);
 
     AsignacionDTO asignacion = fachada.buscarAsignacionPorPaqueteID("paquete1");
-    assertEquals(EstadoAsginacionEnum.COMPLETADA, asignacion.estado());
+    assertEquals(EstadoAsignacionEnum.COMPLETADA, asignacion.estado());
 
     verify(fachadaDonadoresYEntidades, times(1))
         .satisfacerNecesidad("necesidad1", paquete.cantidad());
