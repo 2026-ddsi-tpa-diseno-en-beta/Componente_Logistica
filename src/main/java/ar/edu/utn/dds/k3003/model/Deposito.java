@@ -92,7 +92,8 @@ public class Deposito {
 
     public Integer stockDisponible(String productoId) {
         return stockActual.stream()
-            .filter(paq -> paq.getId().equals(productoId))
+            .filter(paq -> productoId.equals(paq.getProducto()))
+            .filter(paq -> paq.getEstadoPaquete() == EstadoPaquete.EN_STOCK)
             .mapToInt(Paquete::getCantidad)
             .sum();
     }

@@ -29,17 +29,23 @@ public class Application {
   }
 
   @Bean
+  FachadaDonadoresYEntidadesHttp donadoresClient(
+      @Value("${integrations.donadores-url}") String donadoresUrl
+  ) {
+      return new FachadaDonadoresYEntidadesHttp(donadoresUrl);
+  }
+
+  @Bean
   CommandLineRunner configurarIntegraciones(
       Fachada fachada,
-      @Value("${integrations.donaciones-url}") String donacionesUrl,
-      @Value("${integrations.donadores-url}") String donadoresUrl) {
+      FachadaDonadoresYEntidadesHttp donadoresClient,
+      @Value("${integrations.donaciones-url}") String donacionesUrl) {
 
     return args -> {
       fachada.setFachadaDonaciones(
           new FachadaDonacionesHttp(donacionesUrl));
 
-      fachada.setFachadaDonadoresYEntidades(
-          new FachadaDonadoresYEntidadesHttp(donadoresUrl));
+      fachada.setFachadaDonadoresYEntidades(donadoresClient);
     };
   }
 }

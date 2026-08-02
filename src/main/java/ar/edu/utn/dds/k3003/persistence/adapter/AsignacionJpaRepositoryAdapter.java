@@ -34,9 +34,8 @@ public class AsignacionJpaRepositoryAdapter implements AsignacionRepository {
 
   @Override
   public Optional<Asignacion> findByPaqueteId(String paqueteId) {
-    return jpaRepository.findAll().stream()
-        .filter(asig -> asig.getPaquete() != null && String.valueOf(asig.getPaquete().getId()).equals(paqueteId))
-        .findFirst()
+    return jpaRepository
+        .findByPaquete_Id(Long.valueOf(paqueteId))
         .map(mapper::toAsignacion);
   }
 

@@ -100,22 +100,22 @@ public class LogisticaController {
 
   @Operation(summary = "Gestionar una donación")
   @ApiResponse(
-      responseCode = "201",
-      description = "Donación registrada en el depósito",
+      responseCode = "202",
+      description = "Donación registrada y enviada a procesamiento",
       content = @Content(schema = @Schema(implementation = DepositoDTO.class)))
   @ApiResponse(responseCode = "400", description = "Datos inválidos para gestionar la donación")
   @ApiResponse(responseCode = "404", description = "Depósito no encontrado")
   @PostMapping("/depositos/{id}/donacion")
   public ResponseEntity<DepositoDTO> gestionarDonacion(
       @PathVariable("id") String depositoID,
-      @RequestBody GestionDonacionRequest request
+      @Valid @RequestBody GestionDonacionRequest request
   ) {
     DepositoDTO deposito =
         service.gestionarDonacion(depositoID, request.donacionID(), request.productoID(), request.cantidad());
 
     metrics.donacionGestionada();
 
-    return ResponseEntity.status(HttpStatus.CREATED).body(deposito);
+    return ResponseEntity.status(HttpStatus.ACCEPTED).body(deposito);
   }
 
   @Operation(summary = "Obtener una asignación por ID")

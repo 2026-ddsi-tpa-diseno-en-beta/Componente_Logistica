@@ -1,5 +1,7 @@
 package ar.edu.utn.dds.k3003.persistence.entity;
 
+import ar.edu.utn.dds.k3003.model.EstadoPaquete;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -23,6 +25,10 @@ public class PaqueteEntity {
   @Column(nullable = false)
   private Integer cantidad;
 
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private EstadoPaquete estado;
+
   public Long getId() { return id; }
   public void setId(Long id) { this.id = id; }
 
@@ -37,4 +43,7 @@ public class PaqueteEntity {
 
   public Integer getCantidad() { return cantidad; }
   public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
+
+  public EstadoPaquete getEstadoPaquete() { return estado; }
+  public void setEstadoPaquete(EstadoPaquete estado) { this.estado = estado; }
 }

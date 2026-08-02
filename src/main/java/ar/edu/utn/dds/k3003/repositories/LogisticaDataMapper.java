@@ -150,6 +150,7 @@ public class LogisticaDataMapper {
                 paqueteEntity.setDonacionId(paquete.getDonacionId());
                 paqueteEntity.setProductoId(paquete.getProducto());
                 paqueteEntity.setCantidad(paquete.getCantidad());
+                paqueteEntity.setEstadoPaquete(paquete.getEstadoPaquete());
                 paqueteEntity.setDeposito(entity);
 
                 paquetes.add(paqueteEntity);
@@ -176,7 +177,7 @@ public class LogisticaDataMapper {
     }
 
     public Paquete toPaquete(PaqueteEntity entity) {
-        Paquete paquete = new Paquete(entity.getDonacionId(), entity.getProductoId(), entity.getCantidad());
+        Paquete paquete = new Paquete(entity.getDonacionId(), entity.getProductoId(), entity.getCantidad(), entity.getEstadoPaquete());
         paquete.setId(entity.getId() == null    
             ? null 
             : String.valueOf(entity.getId()));
