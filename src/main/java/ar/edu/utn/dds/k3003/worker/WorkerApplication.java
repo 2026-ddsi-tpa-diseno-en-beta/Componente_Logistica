@@ -1,6 +1,7 @@
 package ar.edu.utn.dds.k3003.worker;
 
 import ar.edu.utn.dds.k3003.integration.FachadaDonadoresYEntidadesHttp;
+import ar.edu.utn.dds.k3003.services.AdminDbService;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
@@ -8,18 +9,29 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
+
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 
 @SpringBootApplication(
-    scanBasePackages = {
-        "ar.edu.utn.dds.k3003.worker",
-        "ar.edu.utn.dds.k3003.messaging",
-        "ar.edu.utn.dds.k3003.services"
-    },
     exclude = {
         DataSourceAutoConfiguration.class,
         HibernateJpaAutoConfiguration.class,
         JpaRepositoriesAutoConfiguration.class
+    }
+)
+@ComponentScan(
+    basePackages = {
+        "ar.edu.utn.dds.k3003.worker",
+        "ar.edu.utn.dds.k3003.messaging",
+        "ar.edu.utn.dds.k3003.services"
+    },
+    excludeFilters = {
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = AdminDbService.class
+        )
     }
 )
 public class WorkerApplication {
