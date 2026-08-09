@@ -143,7 +143,7 @@ public class LogisticaController {
 
   @GetMapping("/stock/{productoId}")
   public ResponseEntity<StockDTO> consultarStock(@PathVariable String productoId) {
-    metrics.consultarStock();
+    metrics.consultaStock();
 
     return ResponseEntity.ok(
         service.consultarStock(productoId)
@@ -162,7 +162,7 @@ public class LogisticaController {
           );
 
       if (!asignaciones.isEmpty())
-          asignaciones.forEach(asig -> metrics.asignacionesSolicitudEntidad());
+          asignaciones.forEach(asig -> metrics.asignacionSolicitudEntidad());
 
       if (asignaciones.isEmpty())
           return ResponseEntity.noContent().build();
