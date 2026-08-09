@@ -144,6 +144,36 @@
             </exclude>
           </excludes>
         </configuration>
+        <executions>
+
+          <!-- JAR de la API -->
+          <execution>
+            <id>repackage-api</id>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+            <configuration>
+              <mainClass>
+                ar.edu.utn.dds.k3003.app.Application
+              </mainClass>
+            </configuration>
+          </execution>
+
+          <!-- JAR del Worker -->
+          <execution>
+            <id>repackage-worker</id>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+            <configuration>
+              <classifier>worker</classifier>
+              <mainClass>
+                ar.edu.utn.dds.k3003.worker.WorkerApplication
+              </mainClass>
+            </configuration>
+          </execution>
+
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
