@@ -13,11 +13,18 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
+import ar.edu.utn.dds.k3003.worker.WorkerApplication;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+
 @SpringBootApplication(
-  scanBasePackages = "ar.edu.utn.dds.k3003",
-  excludeName = {
-    "ar.edu.utn.dds.k3003.worker.WorkerApplication"
-  }
+    scanBasePackages = "ar.edu.utn.dds.k3003",
+    excludeFilters = {
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = WorkerApplication.class
+        )
+    }
 )
 @EnableJpaRepositories(basePackages = "ar.edu.utn.dds.k3003.persistence.repository")
 @EntityScan(basePackages = "ar.edu.utn.dds.k3003.persistence.entity")
