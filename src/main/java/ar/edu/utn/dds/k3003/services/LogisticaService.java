@@ -2,6 +2,8 @@ package ar.edu.utn.dds.k3003.services;
 
 import ar.edu.utn.dds.k3003.Fachada;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.*;
+import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
+
 import java.util.List;
 import org.springframework.stereotype.Service;
 
