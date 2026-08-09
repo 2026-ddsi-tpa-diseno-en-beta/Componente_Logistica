@@ -208,7 +208,7 @@ public class Fachada implements FachadaLogistica {
     ResultadoMatchmaking resultado = matchmakingService.procesar(
         deposito.getTipoAlgoritmo(),
         necesidadesMateriales,
-        paqueteDTO.productoID(),
+        paqueteDTO.producto(),
         paqueteDTO.cantidad()
     );
 
@@ -240,10 +240,10 @@ public class Fachada implements FachadaLogistica {
     Asignacion asignacion = new Asignacion(
         paqueteDTO.id(),
         necesidad.id(),
-        resultado.cantidadAsignada(),
-        OrigenAsignacion.MATCHMAKING,
         LocalDateTime.now(),
-        EstadoAsignacionEnum.ASIGNADA
+        EstadoAsignacionEnum.ASIGNADA,
+        resultado.cantidadAsignada(),
+        OrigenAsignacion.MATCHMAKING
     );
 
     Asignacion guardada = asignacionRepo.save(asignacion);
@@ -252,7 +252,7 @@ public class Fachada implements FachadaLogistica {
         deposito.almacenar(
             new Paquete(
                 paqueteDTO.donacionID(),
-                paqueteDTO.productoID(),
+                paqueteDTO.producto(),
                 resultado.cantidadSobrante(),
                 EstadoPaquete.EN_STOCK
             )
@@ -404,10 +404,10 @@ public class Fachada implements FachadaLogistica {
         Asignacion asignacion = new Asignacion(
             paquete.getId(),
             request.necesidadId(),
-            request.cantidadAsignada(),
-            OrigenAsignacion.MATCHMAKING,
             LocalDateTime.now(),
-            EstadoAsignacionEnum.ASIGNADA
+            EstadoAsignacionEnum.ASIGNADA,
+            request.cantidadAsignada(),
+            OrigenAsignacion.MATCHMAKING
         );
 
         Asignacion guardada = asignacionRepo.save(asignacion);
@@ -497,10 +497,10 @@ public class Fachada implements FachadaLogistica {
             Asignacion asignacion = new Asignacion(
                 paquete.getId(),
                 necesidadId,
-                cantidadAsignar,
-                OrigenAsignacion.SOLICITUD_ENTIDAD,
                 LocalDateTime.now(),
-                EstadoAsignacionEnum.ASIGNADA
+                EstadoAsignacionEnum.ASIGNADA,
+                cantidadAsignar,
+                OrigenAsignacion.SOLICITUD_ENTIDAD
             );
 
             Asignacion guardada = asignacionRepo.save(asignacion);
