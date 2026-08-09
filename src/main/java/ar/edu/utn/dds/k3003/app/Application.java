@@ -13,7 +13,12 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-@SpringBootApplication(scanBasePackages = "ar.edu.utn.dds.k3003")
+@SpringBootApplication(
+  scanBasePackages = "ar.edu.utn.dds.k3003",
+  excludeName = {
+    "ar.edu.utn.dds.k3003.worker.WorkerApplication"
+  }
+)
 @EnableJpaRepositories(basePackages = "ar.edu.utn.dds.k3003.persistence.repository")
 @EntityScan(basePackages = "ar.edu.utn.dds.k3003.persistence.entity")
 @OpenAPIDefinition(
