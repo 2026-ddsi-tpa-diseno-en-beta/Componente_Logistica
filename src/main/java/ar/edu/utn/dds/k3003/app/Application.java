@@ -17,8 +17,9 @@ import ar.edu.utn.dds.k3003.worker.WorkerApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 
-@SpringBootApplication(
-    scanBasePackages = "ar.edu.utn.dds.k3003",
+@SpringBootApplication
+@ComponentScan(
+    basePackages = "ar.edu.utn.dds.k3003",
     excludeFilters = {
         @ComponentScan.Filter(
             type = FilterType.ASSIGNABLE_TYPE,
