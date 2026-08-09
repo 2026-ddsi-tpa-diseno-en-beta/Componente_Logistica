@@ -33,7 +33,13 @@ public class Deposito {
     }
 
     public int ocupacionActual() {
-        return stockActual.stream().mapToInt(Paquete::getCantidad).sum();
+        return stockActual
+                .stream()
+                .filter(paquete ->
+                    paquete.getEstadoPaquete() != EstadoPaquete.ENTREGADO
+                )
+                .mapToInt(Paquete::getCantidad)
+                .sum();
     }
 
     public int capacidadDisponible() {
@@ -90,10 +96,15 @@ public class Deposito {
         stockActual.add(paquete);
     }
 
-    public Integer stockDisponible(String productoId) {
+    public List<Paquete> paquetesEnStockDe(String productoId) {
         return stockActual.stream()
-            .filter(paq -> productoId.equals(paq.getProducto()))
-            .filter(paq -> paq.getEstadoPaquete() == EstadoPaquete.EN_STOCK)
+            .filter(paquete -> productoId.equals(paquete.getProducto()))
+            .filter(paquete -> paquete.getEstadoPaquete() == EstadoPaquete.EN_STOCK)
+            .toList();
+    }
+
+    public Integer stockDisponible(String productoId) {
+        return paquetesEnStockDe(productoId).stream()
             .mapToInt(Paquete::getCantidad)
             .sum();
     }

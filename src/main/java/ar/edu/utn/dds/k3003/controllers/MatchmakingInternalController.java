@@ -1,8 +1,9 @@
 package ar.edu.utn.dds.k3003.controllers;
 
-import ar.edu.utn.dds.k3003.Fachada;
+import ar.edu.utn.dds.k3003.services.LogisticaService;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
+import ar.edu.utn.dds.k3003.metrics.LogisticaMetrics;
 
 import jakarta.validation.Valid;
 
@@ -14,10 +15,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/internal/matchmaking")
 public class MatchmakingInternalController {
 
-    private final Fachada fachada;
+    private final LogisticaService service;
+    private final LogisticaMetrics metrics;
 
-    public MatchmakingInternalController(Fachada fachada) {
-        this.fachada = fachada;
+    public MatchmakingInternalController(LogisticaService service, LogisticaMetrics metrics) {
+        this.service = service;
+        this.metrics = metrics;
     }
 
     @PostMapping("/resultados")
@@ -25,10 +28,15 @@ public class MatchmakingInternalController {
         @Valid @RequestBody ResultadoMatchmakingRequest request
     ) {
         AsignacionDTO resultado =
-            fachada.registrarResultadoMatchmaking(request);
+            service.registrarResultadoMatchmaking(request);
 
-        return resultado == null
-            ? ResponseEntity.noContent().build()
-            : ResponseEntity.status(HttpStatus.CREATED).body(resultado);
+        if (resultado == null) {
+            metrics.matchmakingSinAsignacion();
+            return ResponseEntity.noContent().build();
+        }
+
+        metrics.asignacionMatchmaking();
+
+        return ResponseEntity.ok(resultado);
     }
 }

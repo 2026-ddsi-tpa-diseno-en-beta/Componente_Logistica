@@ -13,6 +13,9 @@ public class RabbitConfiguration {
     public static final String EXCHANGE = "logistica.exchange";
     public static final String QUEUE = "logistica.matchmaking";
     public static final String ROUTING_KEY = "logistica.donacion.pendiente";
+    public static final String DLX = "logistica.dlx";
+    public static final String DLQ = "logistica.matchmaking.dlq";
+    public static final String DLQ_ROUTING_KEY = "logistica.donacion.error";
 
     @Bean
     public DirectExchange logisticaExchange() {
@@ -20,8 +23,33 @@ public class RabbitConfiguration {
     }
 
     @Bean
+    DirectExchange deadLetterExchange() {
+        return new DirectExchange(DLX, true, false);
+    }
+
+    @Bean
     public Queue matchmakingQueue() {
-        return QueueBuilder.durable(QUEUE).build();
+        return QueueBuilder
+            .durable(QUEUE)
+            .deadLetterExchange(DLX)
+            .deadLetterRoutingKey(DLQ_ROUTING_KEY)
+            .build();
+    }
+
+    @Bean
+    Queue matchmakingDeadLetterQueue() {
+        return QueueBuilder.durable(DLQ).build();
+    }
+
+    @Bean
+    Binding deadLetterBinding(
+        Queue matchmakingDeadLetterQueue,
+        DirectExchange deadLetterExchange
+    ) {
+        return BindingBuilder
+            .bind(matchmakingDeadLetterQueue)
+            .to(deadLetterExchange)
+            .with(DLQ_ROUTING_KEY);
     }
 
     @Bean

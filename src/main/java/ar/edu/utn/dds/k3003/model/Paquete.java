@@ -64,4 +64,8 @@ public class Paquete {
     public void marcarAsignado() {
         this.estado = EstadoPaquete.ASIGNADO;
     }
+
+    public void marcarEntregado() {
+        this.estado = EstadoPaquete.ENTREGADO;
+    }
 }

@@ -12,14 +12,8 @@ import java.util.List;
 
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Component
-@ConditionalOnProperty(
-    name = "worker.enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
 public class AsignacionWorker {
 
     private final FachadaDonadoresYEntidadesHttp donadoresClient;

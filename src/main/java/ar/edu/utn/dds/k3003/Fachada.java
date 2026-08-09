@@ -7,6 +7,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.logistica.DepositoDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsignacionEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.StockDTO;
 
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaLogistica;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
@@ -275,10 +276,40 @@ public class Fachada implements FachadaLogistica {
     if (asignacion.getEstado() != EstadoAsignacionEnum.ASIGNADA)
       throw new ConflictException("La asignación no está en estado ASIGNADA");
 
+    Deposito deposito = depositoRepo.findAll()
+        .stream()
+        .filter(dep ->
+            dep.getStockActual().stream()
+                .anyMatch(paq ->
+                    paqueteDTO.id().equals(paq.getId())
+                )
+        )
+        .findFirst()
+        .orElseThrow(() ->
+            new ResourceNotFoundException(
+                "Depósito del paquete no encontrado"
+            )
+        );
+
+    Paquete paquete = deposito.getStockActual().stream()
+        .filter(paq ->
+            paqueteDTO.id().equals(paq.getId())
+        )
+        .findFirst()
+        .orElseThrow(() ->
+            new ResourceNotFoundException(
+                "Paquete no encontrado"
+            )
+        );
+
     fachadaDonadores.satisfacerNecesidad(asignacion.getNecesidadId(), asignacion.getCantidadAsignada());
+
+    paquete.marcarEntregado();
 
     asignacion.cambiarEstado(EstadoAsignacionEnum.COMPLETADA);
     asignacionRepo.save(asignacion);
+
+    depositoRepo.save(deposito);
 
     fachadaDonaciones.cambiarEstadoDeDonacion(paqueteDTO.donacionID(), EstadoDonacionEnum.ACEPTADA);
   }
@@ -319,77 +350,181 @@ public class Fachada implements FachadaLogistica {
   public AsignacionDTO registrarResultadoMatchmaking(
       ResultadoMatchmakingRequest request
   ) {
-      Deposito deposito = depositoRepo.findById(request.depositoId())
-          .orElseThrow(() ->
-              new ResourceNotFoundException("Depósito no encontrado")
-          );
+        if (request == null) throw new BusinessRuleException("Resultado inválido");
 
-      Paquete paquete = deposito.getStockActual().stream()
-          .filter(p -> request.paqueteId().equals(p.getId()))
-          .findFirst()
-          .orElseThrow(() ->
-              new ResourceNotFoundException("Paquete no encontrado")
-          );
+        Deposito deposito = depositoRepo.findById(request.depositoId())
+            .orElseThrow(() ->
+                new ResourceNotFoundException(
+                    "Depósito no encontrado"
+                )
+            );
 
-      if (paquete.getEstadoPaquete() == EstadoPaquete.EN_STOCK)
-          return null;
+        Paquete paquete = deposito.getStockActual()
+            .stream()
+            .filter(paq ->
+                request.paqueteId().equals(paq.getId())
+            )
+            .findFirst()
+            .orElseThrow(() ->
+                new ResourceNotFoundException(
+                    "Paquete no encontrado"
+                )
+            );
 
-      if (paquete.getEstadoPaquete() == EstadoPaquete.ASIGNADO) {
-          return asignacionRepo.findByPaqueteId(paquete.getId())
-              .map(mapper::toAsignacionDTO)
-              .orElseThrow(() ->
-                  new IllegalStateException(
-                      "El paquete está asignado pero no posee asignación"
-                  )
-              );
-      }
+        // Ya fue procesado. 
+        if (paquete.getEstadoPaquete() == EstadoPaquete.EN_STOCK) return null;
 
-      // Idempotencia ante reintentos o dos workers.
-      var existente = asignacionRepo.findByPaqueteId(paquete.getId());
+        if (paquete.getEstadoPaquete() == EstadoPaquete.ASIGNADO)
+            return asignacionRepo
+                .findByPaqueteId(paquete.getId())
+                .map(mapper::toAsignacionDTO)
+                .orElseThrow(() ->
+                    new IllegalStateException(
+                        "Paquete asignado sin asignación"
+                    )
+                );
 
-      if (existente.isPresent())
-          return mapper.toAsignacionDTO(existente.get());
+        // Worker informa que no encontró necesidad.
+        if (!request.tieneAsignacion()) {
+            paquete.marcarEnStock();
+            depositoRepo.save(deposito);
+            return null;
+        }
 
-      if (!request.tieneAsignacion()) {
-          paquete.marcarEnStock();
-          depositoRepo.save(deposito);
-          return null;
-      }
+        int cantidadOriginal = paquete.getCantidad();
 
-      if (request.cantidadAsignada() + request.cantidadSobrante()
-          != paquete.getCantidad()) {
-          throw new BusinessRuleException(
-              "El resultado no coincide con la cantidad original"
-          );
-      }
+        if (request.cantidadAsignada() + request.cantidadSobrante() != cantidadOriginal)
+            throw new BusinessRuleException(
+                "El resultado no coincide con la cantidad original"
+            );
 
-      paquete.setCantidad(request.cantidadAsignada());
-      paquete.marcarAsignado();
+        paquete.setCantidad(request.cantidadAsignada());
+        paquete.marcarAsignado();
 
-      Asignacion asignacion = new Asignacion(
-          paquete.getId(),
-          request.necesidadId(),
-          request.cantidadAsignada(),
-          OrigenAsignacion.MATCHMAKING,
-          LocalDateTime.now(),
-          EstadoAsignacionEnum.ASIGNADA
-      );
+        Asignacion asignacion = new Asignacion(
+            paquete.getId(),
+            request.necesidadId(),
+            request.cantidadAsignada(),
+            OrigenAsignacion.MATCHMAKING,
+            LocalDateTime.now(),
+            EstadoAsignacionEnum.ASIGNADA
+        );
 
-      Asignacion guardada = asignacionRepo.save(asignacion);
+        Asignacion guardada = asignacionRepo.save(asignacion);
 
-      if (request.cantidadSobrante() > 0) {
-          deposito.almacenar(
-              new Paquete(
-                  paquete.getDonacionId(),
-                  paquete.getProducto(),
-                  request.cantidadSobrante(),
-                  EstadoPaquete.EN_STOCK
-              )
-          );
-      }
+        if (request.cantidadSobrante() > 0)
+            deposito.almacenar(
+                new Paquete(
+                    paquete.getDonacionId(),
+                    paquete.getProducto(),
+                    request.cantidadSobrante(),
+                    EstadoPaquete.EN_STOCK
+                )
+            );
 
-      depositoRepo.save(deposito);
+        depositoRepo.save(deposito);
 
-      return mapper.toAsignacionDTO(guardada);
+        return mapper.toAsignacionDTO(guardada);
+  }
+
+  @Transactional(readOnly = true)
+  public StockDTO consultarStock(String productoId) {
+    if (productoId == null || productoId.isBlank())
+        throw new BusinessRuleException(
+            "Producto inválido"
+        );
+
+    int cantidad = depositoRepo.findAll()
+        .stream()
+        .mapToInt(deposito ->
+            deposito.stockDisponible(productoId)
+        )
+        .sum();
+
+    return new StockDTO(
+        productoId,
+        cantidad
+    );
+  }
+
+  @Transactional
+  public List<AsignacionDTO> asignarDesdeStock(
+      String necesidadId,
+      String productoId,
+      Integer cantidadSolicitada
+  ) {
+    if (necesidadId == null || necesidadId.isBlank()
+        || productoId == null || productoId.isBlank()
+        || cantidadSolicitada == null
+        || cantidadSolicitada <= 0) 
+            throw new BusinessRuleException(
+                "Datos inválidos para asignar desde stock"
+            );
+
+    List<Deposito> depositos = depositoRepo.findAll();
+
+    int stockDisponible = depositos.stream()
+        .mapToInt(deposito -> deposito.stockDisponible(productoId))
+        .sum();
+
+    if (stockDisponible <= 0) return List.of();
+
+    int cantidadRestante = Math.min(
+        cantidadSolicitada,
+        stockDisponible
+    );
+
+    List<AsignacionDTO> asignaciones = new java.util.ArrayList<>();
+
+    for (Deposito deposito : depositos) {
+        if (cantidadRestante <= 0) break;
+
+        List<Paquete> paquetes = deposito.paquetesEnStockDe(productoId);
+
+        for (Paquete paquete : paquetes) {
+            if (cantidadRestante <= 0) break;
+
+            int cantidadOriginal = paquete.getCantidad();
+            int cantidadAsignar = Math.min(
+                cantidadOriginal,
+                cantidadRestante
+            );
+
+            // El paquete original deja de ser stock y pasa a representar la parte asignada.
+            paquete.setCantidad(cantidadAsignar);
+            paquete.marcarAsignado();
+
+            Asignacion asignacion = new Asignacion(
+                paquete.getId(),
+                necesidadId,
+                cantidadAsignar,
+                OrigenAsignacion.SOLICITUD_ENTIDAD,
+                LocalDateTime.now(),
+                EstadoAsignacionEnum.ASIGNADA
+            );
+
+            Asignacion guardada = asignacionRepo.save(asignacion);
+
+            // Si había sobrante, se crea otro paquete EN_STOCK para conservar la trazabilidad.
+            int sobrante = cantidadOriginal - cantidadAsignar;
+
+            if (sobrante > 0)
+                deposito.almacenar(
+                    new Paquete(
+                        paquete.getDonacionId(),
+                        paquete.getProducto(),
+                        sobrante,
+                        EstadoPaquete.EN_STOCK
+                    )
+                );
+
+            depositoRepo.save(deposito);
+            asignaciones.add(mapper.toAsignacionDTO(guardada));
+
+            cantidadRestante -= cantidadAsignar;
+        }
+    }
+
+    return asignaciones;
   }
 }

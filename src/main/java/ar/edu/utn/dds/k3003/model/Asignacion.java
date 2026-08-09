@@ -22,12 +22,16 @@ public class Asignacion {
         String paqueteId,
         String necesidadId,
         LocalDateTime fecha,
-        EstadoAsignacionEnum estado
+        EstadoAsignacionEnum estado,
+        Integer cantidadAsignada,
+        OrigenAsignacion origen
     ) {
         this.paqueteId = paqueteId;
         this.necesidadId = necesidadId;
         this.fecha = fecha;
         this.estado = estado;
+        this.cantidadAsignada = cantidadAsignada;
+        this.origen = origen;
         this.historial.add(new CambioEstadoAsignacion(estado, fecha));
     }
 

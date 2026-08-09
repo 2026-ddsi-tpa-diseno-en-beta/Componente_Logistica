@@ -3,6 +3,7 @@ package ar.edu.utn.dds.k3003.controllers;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.DepositoRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.GestionDonacionRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.AlgoritmoDepositoRequest;
+import ar.edu.utn.dds.k3003.controllers.requests.logistica.SolicitudAsignacionStockRequest;
 
 import ar.edu.utn.dds.k3003.controllers.responses.MensajeResponse;
 
@@ -10,6 +11,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.DepositoDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.StockDTO;
 
 import ar.edu.utn.dds.k3003.services.LogisticaService;
 import ar.edu.utn.dds.k3003.metrics.LogisticaMetrics;
@@ -137,5 +139,34 @@ public class LogisticaController {
     service.reportarEntrega(paqueteDTO);
     metrics.entregaReportada();
     return ResponseEntity.ok(new MensajeResponse("Entrega registrada correctamente"));
+  }
+
+  @GetMapping("/stock/{productoId}")
+  public ResponseEntity<StockDTO> consultarStock(@PathVariable String productoId) {
+    metrics.consultarStock();
+
+    return ResponseEntity.ok(
+        service.consultarStock(productoId)
+    );
+  }
+
+  @PostMapping("/stock/asignaciones")
+  public ResponseEntity<List<AsignacionDTO>> asignarDesdeStock(
+      @Valid @RequestBody SolicitudAsignacionStockRequest request
+  ) {
+      List<AsignacionDTO> asignaciones =
+          service.asignarDesdeStock(
+              request.necesidadId(),
+              request.productoId(),
+              request.cantidad()
+          );
+
+      if (!asignaciones.isEmpty())
+          asignaciones.forEach(asig -> metrics.asignacionesSolicitudEntidad());
+
+      if (asignaciones.isEmpty())
+          return ResponseEntity.noContent().build();
+
+      return ResponseEntity.ok(asignaciones);
   }
 }
