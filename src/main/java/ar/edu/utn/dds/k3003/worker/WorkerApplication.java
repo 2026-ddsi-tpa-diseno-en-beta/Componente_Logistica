@@ -2,6 +2,7 @@ package ar.edu.utn.dds.k3003.worker;
 
 import ar.edu.utn.dds.k3003.integration.FachadaDonadoresYEntidadesHttp;
 import ar.edu.utn.dds.k3003.services.AdminDbService;
+import ar.edu.utn.dds.k3003.services.LogisticaService;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
@@ -30,7 +31,10 @@ import org.springframework.context.annotation.FilterType;
     excludeFilters = {
         @ComponentScan.Filter(
             type = FilterType.ASSIGNABLE_TYPE,
-            classes = AdminDbService.class
+            classes = {
+                AdminDbService.class,
+                LogisticaService.class
+            }
         )
     }
 )
