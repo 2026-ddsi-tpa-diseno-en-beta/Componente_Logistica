@@ -28,3 +28,10 @@
 
 > Los archivos de las carpetas "/catedra" y ".github/" están PROTEGIDOS, es decir, **NO PUEDEN MODIFICARLOS**.
 Modificar estos archivos implica desaprobar inmediatamente la instancia de entrega del TPA.
+
+
+- 1 : Registrar una nueva donación ( flujo completo ) 
+- 2 : Reportar una entrega ( flujo completo ) 
+- 3 : Procesar al donador ( Incentivos ) 
+- 4 : Obtener las estadísticas de un donador 
+- 5 : Registrar una queja sobre la donación ( Para este flujo, tráiganse un donador creado con 9 quejas, así le hacemos una más y probamos el baneo )

@@ -33,7 +33,13 @@ public class Deposito {
     }
 
     public int ocupacionActual() {
-        return stockActual.stream().mapToInt(Paquete::getCantidad).sum();
+        return stockActual
+                .stream()
+                .filter(paquete ->
+                    paquete.getEstadoPaquete() != EstadoPaquete.ENTREGADO
+                )
+                .mapToInt(Paquete::getCantidad)
+                .sum();
     }
 
     public int capacidadDisponible() {
@@ -80,5 +86,26 @@ public class Deposito {
     }
     public void setTipoAlgoritmo(TipoAlgoritmoEnum algoritmo) {
         this.algoritmo = algoritmo;
+    }
+
+    public boolean tieneLugar(Integer cantidad) {
+        return capacidadDisponible() >= cantidad;
+    }
+
+    public void almacenar(Paquete paquete) {
+        stockActual.add(paquete);
+    }
+
+    public List<Paquete> paquetesEnStockDe(String productoId) {
+        return stockActual.stream()
+            .filter(paquete -> productoId.equals(paquete.getProducto()))
+            .filter(paquete -> paquete.getEstadoPaquete() == EstadoPaquete.EN_STOCK)
+            .toList();
+    }
+
+    public Integer stockDisponible(String productoId) {
+        return paquetesEnStockDe(productoId).stream()
+            .mapToInt(Paquete::getCantidad)
+            .sum();
     }
 }

@@ -6,16 +6,23 @@ public class Paquete {
     private String donacionId;
     private String producto;
     private Integer cantidad;
+    private EstadoPaquete estado;
+
+    public Paquete(String donacionId, String producto, Integer cantidad) {
+        this(donacionId, producto, cantidad, EstadoPaquete.PENDIENTE);
+    }
 
     public Paquete
     (
         String donacionId, 
         String producto, 
-        Integer cantidad
+        Integer cantidad,
+        EstadoPaquete estado
     ) {
         this.donacionId = donacionId;
         this.producto = producto;
         this.cantidad = cantidad;
+        this.estado = estado;
     }
 
     public String getId() {
@@ -44,5 +51,21 @@ public class Paquete {
     }
     public void setCantidad(Integer cantidad) {
         this.cantidad = cantidad;
+    }
+
+    public EstadoPaquete getEstadoPaquete() {
+        return estado;
+    }
+
+    public void marcarEnStock() {
+        this.estado = EstadoPaquete.EN_STOCK;
+    }
+
+    public void marcarAsignado() {
+        this.estado = EstadoPaquete.ASIGNADO;
+    }
+
+    public void marcarEntregado() {
+        this.estado = EstadoPaquete.ENTREGADO;
     }
 }

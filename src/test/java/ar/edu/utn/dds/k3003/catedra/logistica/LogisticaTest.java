@@ -234,7 +234,7 @@ public class LogisticaTest {
     instancia.reportarEntrega(paqueteEjemplo);
 
     Assertions.assertEquals(
-        EstadoAsginacionEnum.COMPLETADA,
+        EstadoAsignacionEnum.COMPLETADA,
         instancia.buscarAsignacionPorPaqueteID(paqueteEjemplo.id()).estado());
 
     verify(fachadaDonadoresYEntidades, times(1))

@@ -45,4 +45,24 @@ public class LogisticaService {
   public void reportarEntrega(PaqueteDTO paqueteDTO) {
     fachada.reportarEntrega(paqueteDTO);
   }
+
+  public StockDTO consultarStock(String productoId) {
+      return fachada.consultarStock(productoId);
+  }
+
+  public List<AsignacionDTO> asignarDesdeStock(
+      String necesidadId,
+      String productoId,
+      Integer cantidad
+  ) {
+      return fachada.asignarDesdeStock(
+          necesidadId,
+          productoId,
+          cantidad
+      );
+  }
+
+  public AsignacionDTO registrarResultadoMatchmaking(ResultadoMatchmakingRequest request) {
+      return fachada.registrarResultadoMatchmaking(request);
+  }
 }
