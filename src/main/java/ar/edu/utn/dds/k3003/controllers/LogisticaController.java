@@ -141,6 +141,21 @@ public class LogisticaController {
     return ResponseEntity.ok(new MensajeResponse("Entrega registrada correctamente"));
   }
 
+  @Operation(
+      summary = "Consultar stock por producto",
+      description = "Obtiene el stock disponible en los depósitos para un producto determinado."
+  )
+  @ApiResponse(
+      responseCode = "200",
+      description = "Stock obtenido correctamente",
+      content = @Content(
+          schema = @Schema(implementation = StockDTO.class)
+      )
+  )
+  @ApiResponse(
+      responseCode = "404",
+      description = "Producto o recurso no encontrado"
+  )
   @GetMapping("/stock/{productoId}")
   public ResponseEntity<StockDTO> consultarStock(@PathVariable String productoId) {
     metrics.consultaStock();
@@ -150,6 +165,29 @@ public class LogisticaController {
     );
   }
 
+  @Operation(
+      summary = "Solicitar asignaciones desde stock",
+      description = "Solicita asignaciones de paquetes disponibles en stock para satisfacer una necesidad material."
+  )
+  @ApiResponse(
+      responseCode = "200",
+      description = "Asignaciones realizadas correctamente",
+      content = @Content(
+          schema = @Schema(implementation = AsignacionDTO.class)
+      )
+  )
+  @ApiResponse(
+      responseCode = "204",
+      description = "No existen paquetes disponibles para realizar la asignación"
+  )
+  @ApiResponse(
+      responseCode = "400",
+      description = "Datos inválidos"
+  )
+  @ApiResponse(
+      responseCode = "404",
+      description = "Necesidad o producto no encontrado"
+  )
   @PostMapping("/stock/asignaciones")
   public ResponseEntity<List<AsignacionDTO>> asignarDesdeStock(
       @Valid @RequestBody SolicitudAsignacionStockRequest request
