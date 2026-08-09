@@ -136,6 +136,7 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
         <version>3.5.1</version>
         <configuration>
+          <mainClass>ar.edu.utn.dds.k3003.app.Application</mainClass>
           <excludes>
             <exclude>
               <groupId>org.projectlombok</groupId>
