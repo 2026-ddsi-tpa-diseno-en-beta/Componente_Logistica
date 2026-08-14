@@ -1,7 +1,9 @@
 package ar.edu.utn.dds.k3003.catedra.fachadas;
 
+import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.*;
+
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -14,17 +16,34 @@ public interface FachadaLogistica {
   AsignacionDTO buscarAsignacionPorPaqueteID(String paqueteID) throws NoSuchElementException;
 
   DepositoDTO gestionarDonacion(
-      String depositoID, String donacionID, String productoID, Integer cantidad)
-      throws NoSuchElementException;
+      String depositoID,
+      String donacionID,
+      String productoID,
+      Integer cantidad
+  ) throws NoSuchElementException;
 
-  void setAlgoritmoMM(String depositoID, TipoAlgoritmoEnum tipoAlgoritmo);
+  void setAlgoritmoMM(
+      String depositoID,
+      TipoAlgoritmoEnum tipoAlgoritmo
+  );
 
   AsignacionDTO ejecutarMatchmaking(
-      String depositoID, PaqueteDTO paqueteDTO, List<NecesidadMaterialDTO> necesidades);
+      String depositoID,
+      PaqueteDTO paqueteDTO,
+      List<NecesidadMaterialDTO> necesidades
+  );
+
+  AsignacionDTO registrarResultadoMatchmaking(
+      ResultadoMatchmakingRequest request
+  );
 
   void reportarEntrega(PaqueteDTO paqueteDTO);
 
-  void setFachadaDonadoresYEntidades(FachadaDonadoresYEntidades fachadaDonadoresYEntidades);
+  void setFachadaDonadoresYEntidades(
+      FachadaDonadoresYEntidades fachadaDonadoresYEntidades
+  );
 
-  void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones);
+  void setFachadaDonaciones(
+      FachadaDonaciones fachadaDonaciones
+  );
 }

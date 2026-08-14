@@ -13,9 +13,9 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-import ar.edu.utn.dds.k3003.worker.WorkerApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import ar.edu.utn.dds.k3003.worker.WorkerApplication;
 
 @SpringBootApplication
 @ComponentScan(

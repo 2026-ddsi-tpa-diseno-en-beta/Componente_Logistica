@@ -8,12 +8,16 @@ import ar.edu.utn.dds.k3003.messaging.dto.DonacionPendienteMessage;
 import ar.edu.utn.dds.k3003.model.algoritmos.ResultadoMatchmaking;
 import ar.edu.utn.dds.k3003.services.MatchmakingService;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Profile;
 
 @Component
+@Profile("worker")
 public class AsignacionWorker {
 
     private final FachadaDonadoresYEntidadesHttp donadoresClient;
@@ -37,15 +41,27 @@ public class AsignacionWorker {
                 message.productoId()
             );
 
+        List<NecesidadMaterialDTO> necesidadesSeguras =
+            necesidades == null ? List.of() : necesidades;
+
+        Map<String, Integer> cantidadesSatisfechas = new HashMap<>();
+        necesidadesSeguras.stream()
+            .filter(n -> n != null && n.id() != null)
+            .forEach(n -> cantidadesSatisfechas.put(
+                n.id(),
+                logisticaClient.cantidadAsignada(n.id())
+            ));
+
         ResultadoMatchmaking resultado = matchmakingService.procesar(
             message.algoritmo(),
-            necesidades == null ? List.of() : necesidades,
+            necesidadesSeguras,
             message.productoId(),
-            message.cantidad()
+            message.cantidad(),
+            cantidadesSatisfechas
         );
 
         String necesidadId = resultado.necesidad()
-            .map(NecesidadMaterialDTO::id)
+            .map(n -> n.id())
             .orElse(null);
 
         logisticaClient.registrarResultado(

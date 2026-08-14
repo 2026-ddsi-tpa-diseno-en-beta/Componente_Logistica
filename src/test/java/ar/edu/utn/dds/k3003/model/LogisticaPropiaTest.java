@@ -1,6 +1,9 @@
 package ar.edu.utn.dds.k3003.model;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 import ar.edu.utn.dds.k3003.Fachada;
@@ -29,19 +32,15 @@ class LogisticaPropiaTest {
   @BeforeEach
   void setUp() {
     fachada = new Fachada();
-
     fachadaDonadoresYEntidades = mock(FachadaDonadoresYEntidades.class);
     fachadaDonaciones = mock(FachadaDonaciones.class);
-
     fachada.setFachadaDonadoresYEntidades(fachadaDonadoresYEntidades);
     fachada.setFachadaDonaciones(fachadaDonaciones);
   }
 
   @Test
   void agregarDepositoYBuscarlo() {
-    DepositoDTO creado =
-        fachada.agregarDeposito(new DepositoDTO(null, null, "Deposito A", "Direccion A", 100, null));
-    fachada.setAlgoritmoMM(creado.id(), TipoAlgoritmoEnum.SUB_ATENDIDOS);
+    DepositoDTO creado = crearDeposito();
 
     assertNotNull(creado.id());
     assertEquals("Deposito A", creado.nombre());
@@ -52,111 +51,114 @@ class LogisticaPropiaTest {
   }
 
   @Test
-  void ejecutarMatchmakingGuardaAsignacion() {
-    DepositoDTO deposito =
-        fachada.agregarDeposito(new DepositoDTO(null, null, "Deposito A", "Direccion A", 100, null));
-    fachada.setAlgoritmoMM(deposito.id(), TipoAlgoritmoEnum.SUB_ATENDIDOS);
+  void gestionarDonacionPublicaMensajeSinConsultarNecesidades() {
+    DepositoDTO deposito = crearDeposito();
 
-    PaqueteDTO paquete = new PaqueteDTO("paquete1", "donacion1", "producto1", 10);
+    DepositoDTO resultado =
+        fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 10);
+
+    assertEquals(deposito.id(), resultado.id());
+    assertEquals(1, resultado.stockActual().size());
+    assertEquals("donacion1", resultado.stockActual().getFirst().donacionID());
+    verifyNoInteractions(fachadaDonadoresYEntidades);
+  }
+
+  @Test
+  void ejecutarMatchmakingCreaAsignacionYConservaSobrante() {
+    DepositoDTO deposito = crearDeposito();
+    DepositoDTO conPaquete =
+        fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 30);
+    PaqueteDTO paquete = conPaquete.stockActual().getFirst();
+
     List<NecesidadMaterialDTO> necesidades =
         List.of(
             new NecesidadMaterialDTO(
-                "necesidad1",
-                "entidad1",
-                5,
-                "desc",
-                20,
-                "producto1",
-                TipoNecesidadMaterialEnum.EXTRAORDINARIA));
+                "necesidad1", "entidad1", 5, "desc", 20, "producto1", TipoNecesidadMaterialEnum.EXTRAORDINARIA));
 
-    AsignacionDTO asignacion = fachada.ejecutarMatchmaking(deposito.id(), paquete, necesidades);
+    AsignacionDTO asignacion =
+        fachada.ejecutarMatchmaking(conPaquete.id(), paquete, necesidades);
 
     assertNotNull(asignacion);
-    assertEquals("paquete1", asignacion.paqueteID());
     assertEquals("necesidad1", asignacion.necesidadID());
+    assertEquals(20, asignacion.cantidadAsignada());
     assertEquals(EstadoAsignacionEnum.ASIGNADA, asignacion.estado());
 
-    AsignacionDTO buscada = fachada.buscarAsignacionPorPaqueteID("paquete1");
-    assertEquals(asignacion.id(), buscada.id());
+    DepositoDTO actualizado = fachada.buscarDepositoPorID(deposito.id());
+    assertEquals(2, actualizado.stockActual().size());
+    assertTrue(
+        actualizado.stockActual().stream().anyMatch(p -> p.cantidad() == 10 && p.donacionID().equals("donacion1")));
   }
 
   @Test
-  void gestionarDonacionInvocaDependenciasYDevuelveDeposito() {
-    DepositoDTO deposito =
-        fachada.agregarDeposito(new DepositoDTO(null, null, "Deposito A", "Direccion A", 100, null));
-    fachada.setAlgoritmoMM(deposito.id(), TipoAlgoritmoEnum.SUB_ATENDIDOS);
+  void registrarResultadoMatchmakingEsIdempotente() {
+    DepositoDTO deposito = crearDeposito();
+    DepositoDTO conPaquete =
+        fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 10);
+    PaqueteDTO paquete = conPaquete.stockActual().getFirst();
 
-    when(fachadaDonadoresYEntidades.obtenerNecesidadesInsatisfechasDe("producto1"))
-        .thenReturn(
-            List.of(
-                new NecesidadMaterialDTO(
-                    "necesidad1",
-                    "entidad1",
-                    5,
-                    "desc",
-                    10,
-                    "producto1",
-                    TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
+    var request =
+        new ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest(
+            deposito.id(), paquete.id(), "necesidad1", 10, 0);
 
-    DepositoDTO resultado = fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 10);
+    AsignacionDTO primera = fachada.registrarResultadoMatchmaking(request);
+    AsignacionDTO segunda = fachada.registrarResultadoMatchmaking(request);
 
-    assertEquals(deposito.id(), resultado.id());
-    verify(fachadaDonadoresYEntidades, times(1)).obtenerNecesidadesInsatisfechasDe("producto1");
-    verify(fachadaDonadoresYEntidades, never()).satisfacerNecesidad(anyString(), anyInt());
+    assertEquals(primera.id(), segunda.id());
+    assertEquals(primera.id(), fachada.buscarAsignacionPorPaqueteID(paquete.id()).id());
   }
 
   @Test
-  void reportarEntregaMarcaAsignacionComoCompletada() {
-    DepositoDTO deposito =
-        fachada.agregarDeposito(new DepositoDTO(null, null, "Deposito A", "Direccion A", 100, null));
-    fachada.setAlgoritmoMM(deposito.id(), TipoAlgoritmoEnum.SUB_ATENDIDOS);
+  void reportarEntregaUsaDonacionPersistidaYCompletaAsignacion() {
+    DepositoDTO deposito = crearDeposito();
+    DepositoDTO conPaquete =
+        fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 10);
+    PaqueteDTO paquete = conPaquete.stockActual().getFirst();
 
-    PaqueteDTO paquete = new PaqueteDTO("paquete1", "donacion1", "producto1", 10);
+    fachada.registrarResultadoMatchmaking(
+        new ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest(
+            deposito.id(), paquete.id(), "necesidad1", 10, 0));
 
-    when(fachadaDonadoresYEntidades.satisfacerNecesidad("necesidad1", paquete.cantidad()))
+    when(fachadaDonadoresYEntidades.satisfacerNecesidad("necesidad1", 10))
         .thenReturn(
             new NecesidadMaterialDTO(
-                "necesidad1",
-                "entidad1",
-                5,
-                "desc",
-                0,
-                "producto1",
-                TipoNecesidadMaterialEnum.EXTRAORDINARIA));
-
-    when(fachadaDonaciones.cambiarEstadoDeDonacion(
-            paquete.donacionID(), EstadoDonacionEnum.ACEPTADA))
+                "necesidad1", "entidad1", 5, "desc", 10, "producto1", TipoNecesidadMaterialEnum.EXTRAORDINARIA));
+    when(fachadaDonaciones.cambiarEstadoDeDonacion("donacion1", EstadoDonacionEnum.ACEPTADA))
         .thenReturn(
             new DonacionDTO(
-                paquete.donacionID(),
-                "donador1",
-                "deposito1",
-                "descripcion1",
-                paquete.producto(),
-                paquete.cantidad(),
-                EstadoDonacionEnum.ACEPTADA));
-
-    fachada.ejecutarMatchmaking(
-        deposito.id(),
-        paquete,
-        List.of(
-            new NecesidadMaterialDTO(
-                "necesidad1",
-                "entidad1",
-                5,
-                "desc",
-                20,
-                "producto1",
-                TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
+                "donacion1", "donador1", deposito.id(), "desc", "producto1", 10, EstadoDonacionEnum.ACEPTADA));
 
     fachada.reportarEntrega(paquete);
 
-    AsignacionDTO asignacion = fachada.buscarAsignacionPorPaqueteID("paquete1");
-    assertEquals(EstadoAsignacionEnum.COMPLETADA, asignacion.estado());
+    assertEquals(
+        EstadoAsignacionEnum.COMPLETADA,
+        fachada.buscarAsignacionPorPaqueteID(paquete.id()).estado());
+    verify(fachadaDonadoresYEntidades).satisfacerNecesidad("necesidad1", 10);
+    verify(fachadaDonaciones).cambiarEstadoDeDonacion("donacion1", EstadoDonacionEnum.ACEPTADA);
+  }
 
-    verify(fachadaDonadoresYEntidades, times(1))
-        .satisfacerNecesidad("necesidad1", paquete.cantidad());
-    verify(fachadaDonaciones, times(1))
-        .cambiarEstadoDeDonacion("donacion1", EstadoDonacionEnum.ACEPTADA);
+  @Test
+  void ejecutarMatchmakingRecurrenteSoloSiLaCantidadCubreElPendiente() {
+    DepositoDTO deposito = crearDeposito();
+    DepositoDTO conPaquete = fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 5);
+    PaqueteDTO paquete = conPaquete.stockActual().getFirst();
+
+    List<NecesidadMaterialDTO> necesidades =
+        List.of(
+            new NecesidadMaterialDTO(
+                "recurrente", "entidad1", 5, "desc", 10, "producto1", TipoNecesidadMaterialEnum.RECURRENTE));
+
+    AsignacionDTO resultado = fachada.ejecutarMatchmaking(conPaquete.id(), paquete, necesidades);
+    assertNull(resultado);
+
+    DepositoDTO actualizado = fachada.buscarDepositoPorID(deposito.id());
+    assertEquals(1, actualizado.stockActual().size());
+  }
+
+  private DepositoDTO crearDeposito() {
+    DepositoDTO deposito =
+        fachada.agregarDeposito(
+            new DepositoDTO(null, null, "Deposito A", "Direccion A", 100, null));
+    fachada.setAlgoritmoMM(deposito.id(), TipoAlgoritmoEnum.SUB_ATENDIDOS);
+    return deposito;
   }
 }

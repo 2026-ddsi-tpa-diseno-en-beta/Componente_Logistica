@@ -134,7 +134,6 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>3.5.1</version>
         <configuration>
           <mainClass>ar.edu.utn.dds.k3003.app.Application</mainClass>
           <excludes>

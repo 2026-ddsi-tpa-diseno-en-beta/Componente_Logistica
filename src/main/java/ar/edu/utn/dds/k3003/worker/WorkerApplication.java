@@ -41,10 +41,9 @@ import org.springframework.context.annotation.FilterType;
 public class WorkerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(
-            WorkerApplication.class,
-            args
-        );
+        SpringApplication application = new SpringApplication(WorkerApplication.class);
+        application.setAdditionalProfiles("worker");
+        application.run(args);
     }
 
     @Bean

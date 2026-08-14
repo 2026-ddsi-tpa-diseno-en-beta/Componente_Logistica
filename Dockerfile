@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN mvn clean package -Dmaven.test.skip=true
+RUN mvn clean package -DskipTests
 
 
 # ---------- RUNTIME ----------

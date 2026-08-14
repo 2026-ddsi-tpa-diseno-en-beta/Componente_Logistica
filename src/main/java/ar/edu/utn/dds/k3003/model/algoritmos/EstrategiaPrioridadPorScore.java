@@ -1,24 +1,33 @@
 package ar.edu.utn.dds.k3003.model.algoritmos;
 
-import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO;
-
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-// Prioriza la necesidad con mayor SCORE. El score considera su urgencia y cantidad objetivo
 public class EstrategiaPrioridadPorScore implements EstrategiaMatchMaking {
 
     @Override
-    public Optional<NecesidadMaterialDTO> elegir(List<NecesidadMaterialDTO> necesidadesElegibles) {
-        if (necesidadesElegibles == null || necesidadesElegibles.isEmpty())
+    public Optional<NecesidadMatchmaking> elegir(
+        List<NecesidadMatchmaking> necesidadesElegibles,
+        int cantidadProducto
+    ) {
+        if (necesidadesElegibles == null || necesidadesElegibles.isEmpty()) {
             return Optional.empty();
+        }
+
+        if (cantidadProducto <= 0) {
+            return Optional.empty();
+        }
 
         return necesidadesElegibles.stream()
-            .max(Comparator.comparingLong(this::calcularScore));
+            .max(Comparator.comparingDouble(necesidad -> calcularScore(necesidad, cantidadProducto)));
     }
 
-    private long calcularScore(NecesidadMaterialDTO necesidad) {
-        return (long) necesidad.nivelDeUrgencia() * necesidad.cantidadObjetivo();
+    private double calcularScore(
+        NecesidadMatchmaking necesidad,
+        int cantidadProducto
+    ) {
+        return necesidad.nivelUrgencia()
+            / (cantidadProducto / (double) necesidad.cantidadObjetivo());
     }
 }
