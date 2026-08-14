@@ -1,6 +1,5 @@
 package ar.edu.utn.dds.k3003.controllers;
 
-import ar.edu.utn.dds.k3003.controllers.requests.logistica.DepositoRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.GestionDonacionRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.AlgoritmoDepositoRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.SolicitudAsignacionStockRequest;
@@ -43,19 +42,19 @@ public class LogisticaController {
     this.metrics = metrics;
   }
 
-  @Operation(summary = "Crear un depósito")
+  @Operation(
+      summary = "Crear un depósito",
+      description = "Crea un depósito con su nombre, dirección y capacidad máxima. El algoritmo de matchmaking queda sin configurar hasta que sea asignado posteriormente.")
   @ApiResponse(
-      responseCode = "201",
+      responseCode = "200",
       description = "Depósito creado correctamente",
       content = @Content(schema = @Schema(implementation = DepositoDTO.class)))
+  @ApiResponse(responseCode = "400", description = "Datos inválidos para crear el depósito")
   @PostMapping("/depositos")
-  public ResponseEntity<DepositoDTO> crearDeposito(@Valid @RequestBody DepositoRequest request) {
-    DepositoDTO deposito =
-        service.crearDeposito(request.nombre(), request.direccion(), request.capacidadMaxima());
-    
+  public ResponseEntity<DepositoDTO> crearDeposito(@Valid @RequestBody DepositoDTO request) {
+    DepositoDTO deposito = service.crearDeposito(request);
     metrics.depositoCreado();
-
-    return ResponseEntity.status(HttpStatus.CREATED).body(deposito);
+    return ResponseEntity.ok(deposito);
   }
 
   @Operation(summary = "Obtener todos los depósitos")

@@ -184,4 +184,23 @@ public class LogisticaDataMapper {
 
         return paquete;
     }
+    public void actualizarIdsPersistidos(Deposito deposito, DepositoEntity entity) {
+        if (entity.getId() != null)
+            deposito.setId(String.valueOf(entity.getId()));
+
+        List<Paquete> paquetes = deposito.getStockActual() == null
+            ? List.of()
+            : deposito.getStockActual();
+        List<PaqueteEntity> entidades = entity.getPaquetes() == null
+            ? List.of()
+            : entity.getPaquetes();
+
+        int limite = Math.min(paquetes.size(), entidades.size());
+        for (int i = 0; i < limite; i++) {
+            Long id = entidades.get(i).getId();
+            if (id != null)
+                paquetes.get(i).setId(String.valueOf(id));
+        }
+    }
+
 }

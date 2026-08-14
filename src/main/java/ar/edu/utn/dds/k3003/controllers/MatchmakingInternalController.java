@@ -23,6 +23,13 @@ public class MatchmakingInternalController {
         this.metrics = metrics;
     }
 
+    @GetMapping("/necesidades/{necesidadId}/cantidad-asignada")
+    public ResponseEntity<Integer> cantidadAsignada(
+        @PathVariable String necesidadId
+    ) {
+        return ResponseEntity.ok(service.cantidadAsignadaPorNecesidad(necesidadId));
+    }
+
     @PostMapping("/resultados")
     public ResponseEntity<AsignacionDTO> registrarResultado(
         @Valid @RequestBody ResultadoMatchmakingRequest request

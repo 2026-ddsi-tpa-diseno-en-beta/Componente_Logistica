@@ -57,6 +57,10 @@ public class Paquete {
         return estado;
     }
 
+    public void setEstadoPaquete(EstadoPaquete estado) {
+        this.estado = estado;
+    }
+
     public void marcarEnStock() {
         this.estado = EstadoPaquete.EN_STOCK;
     }

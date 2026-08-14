@@ -1,4 +1,4 @@
-package ar.edu.utn.dds.k3003.catedra.donadoresyentidades;
+package ar.edu.utn.dds.k3003.catedra.donadoresYEntidades;
 
 import static org.mockito.Mockito.*;
 
@@ -21,7 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-@EnabledIf("ar.edu.utn.dds.k3003.catedra.donadoresyentidades.DonadoresYEntidadesTest#condicion")
+@EnabledIf("ar.edu.utn.dds.k3003.catedra.donadoresYEntidades.DonadoresYEntidadesTest#condicion")
 public class DonadoresYEntidadesTest {
 
   FachadaDonadoresYEntidades instancia;

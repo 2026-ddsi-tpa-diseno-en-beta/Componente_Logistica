@@ -24,7 +24,10 @@ public class DepositoJpaRepositoryAdapter implements DepositoRepository {
 
   @Override
   public Deposito save(Deposito deposito) {
-    return mapper.toDeposito(jpaRepository.save(mapper.toDepositoEntity(deposito)));
+    var entity = mapper.toDepositoEntity(deposito);
+    var saved = jpaRepository.save(entity);
+    mapper.actualizarIdsPersistidos(deposito, saved);
+    return deposito;
   }
 
   @Override

@@ -1,9 +1,12 @@
 package ar.edu.utn.dds.k3003.services;
 
 import ar.edu.utn.dds.k3003.Fachada;
-import ar.edu.utn.dds.k3003.catedra.dtos.logistica.*;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.DepositoDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.PaqueteDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.StockDTO;
+import ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
-
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -16,8 +19,8 @@ public class LogisticaService {
     this.fachada = fachada;
   }
 
-  public DepositoDTO crearDeposito(String nombre, String direccion, Integer capacidadMaxima) {
-    return fachada.agregarDeposito(new DepositoDTO(null, null, nombre, direccion, capacidadMaxima, null));
+  public DepositoDTO crearDeposito(DepositoDTO deposito) {
+    return fachada.agregarDeposito(deposito);
   }
 
   public List<DepositoDTO> listarDepositos() {
@@ -36,7 +39,11 @@ public class LogisticaService {
     fachada.setAlgoritmoMM(depositoId, algoritmo);
   }
 
-  public DepositoDTO gestionarDonacion(String depositoID, String donacionID, String productoID, Integer cantidad) {
+  public DepositoDTO gestionarDonacion(
+      String depositoID,
+      String donacionID,
+      String productoID,
+      Integer cantidad) {
     return fachada.gestionarDonacion(depositoID, donacionID, productoID, cantidad);
   }
 
@@ -49,22 +56,21 @@ public class LogisticaService {
   }
 
   public StockDTO consultarStock(String productoId) {
-      return fachada.consultarStock(productoId);
+    return fachada.consultarStock(productoId);
   }
 
   public List<AsignacionDTO> asignarDesdeStock(
       String necesidadId,
       String productoId,
-      Integer cantidad
-  ) {
-      return fachada.asignarDesdeStock(
-          necesidadId,
-          productoId,
-          cantidad
-      );
+      Integer cantidad) {
+    return fachada.asignarDesdeStock(necesidadId, productoId, cantidad);
   }
 
   public AsignacionDTO registrarResultadoMatchmaking(ResultadoMatchmakingRequest request) {
-      return fachada.registrarResultadoMatchmaking(request);
+    return fachada.registrarResultadoMatchmaking(request);
+  }
+
+  public int cantidadAsignadaPorNecesidad(String necesidadId) {
+    return fachada.cantidadAsignadaPorNecesidad(necesidadId);
   }
 }
