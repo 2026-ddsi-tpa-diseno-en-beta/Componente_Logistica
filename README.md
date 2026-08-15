@@ -21,8 +21,8 @@
 - [https://donatrack-api-logistica-diseno-en-beta.onrender.com/swagger-ui/index.html](https://donatrack-api-logistica-diseno-en-beta.onrender.com/swagger-ui/index.html)
 
 🧩 Link a Workers y activarlos
-- [https://donatrack-logistica-worker-1.onrender.com/health](Worker-1)
-- [https://donatrack-logistica-worker-2.onrender.com/health](Worker-2)
+- [https://donatrack-logistica-worker-1.onrender.com/health](https://donatrack-logistica-worker-1.onrender.com/health)
+- [https://donatrack-logistica-worker-2.onrender.com/health](https://donatrack-logistica-worker-2.onrender.com/health)
 
 ---
 
