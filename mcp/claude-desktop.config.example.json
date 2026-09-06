@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "donatrack-logistica": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "/RUTA/AL/donatrack-logistica-mcp.jar"
+      ],
+      "env": {
+        "LOGISTICA_API_URL": "http://localhost:8080"
+      }
+    }
+  }
+}

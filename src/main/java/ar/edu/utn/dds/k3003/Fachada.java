@@ -31,18 +31,25 @@ import ar.edu.utn.dds.k3003.repositories.LogisticaDataMapper;
 import ar.edu.utn.dds.k3003.repositories.inmemory.InMemoryAsignacionRepository;
 import ar.edu.utn.dds.k3003.repositories.inmemory.InMemoryDepositoRepository;
 import ar.edu.utn.dds.k3003.services.MatchmakingService;
+import ar.edu.utn.dds.k3003.services.MatchmakingRegistrationResult;
+import ar.edu.utn.dds.k3003.observability.TraceContext;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class Fachada implements FachadaLogistica {
+
+    private static final Logger log = LoggerFactory.getLogger(Fachada.class);
 
     private final DepositoRepository depositoRepo;
     private final AsignacionRepository asignacionRepo;
@@ -134,7 +141,7 @@ public class Fachada implements FachadaLogistica {
             throw new BusinessRuleException("El algoritmo es obligatorio");
         }
 
-        Deposito deposito = depositoRepo.findById(depositoID)
+        Deposito deposito = depositoRepo.findByIdForUpdate(depositoID)
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
         deposito.setTipoAlgoritmo(tipoAlgoritmo);
@@ -157,7 +164,7 @@ public class Fachada implements FachadaLogistica {
             throw new BusinessRuleException("La cantidad donada debe ser positiva");
         }
 
-        Deposito deposito = depositoRepo.findById(depositoID)
+        Deposito deposito = depositoRepo.findByIdForUpdate(depositoID)
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
         if (deposito.getTipoAlgoritmo() == null) {
@@ -190,9 +197,20 @@ public class Fachada implements FachadaLogistica {
                     donacionID,
                     productoID,
                     cantidad,
-                    guardado.getTipoAlgoritmo()
+                    guardado.getTipoAlgoritmo(),
+                    TraceContext.currentTraceId()
                 )
             )
+        );
+
+        log.info(
+            "donacion.registrada deposito={} paquete={} donacion={} producto={} cantidad={} algoritmo={}",
+            guardado.getId(),
+            paquete.getId(),
+            donacionID,
+            productoID,
+            cantidad,
+            guardado.getTipoAlgoritmo()
         );
 
         return mapper.toDepositoDTO(guardado);
@@ -211,7 +229,7 @@ public class Fachada implements FachadaLogistica {
             throw new BusinessRuleException("Paquete inválido");
         }
 
-        Deposito deposito = depositoRepo.findById(depositoID)
+        Deposito deposito = depositoRepo.findByIdForUpdate(depositoID)
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
         if (deposito.getTipoAlgoritmo() == null) {
@@ -244,6 +262,10 @@ public class Fachada implements FachadaLogistica {
 
         asegurarIntegraciones();
 
+        Deposito deposito = encontrarDepositoPorPaquete(paqueteDTO.id());
+        deposito = depositoRepo.findByIdForUpdate(deposito.getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
+
         Asignacion asignacion = asignacionRepo.findByPaqueteId(paqueteDTO.id())
             .orElseThrow(() -> new ResourceNotFoundException("Asignación no encontrada"));
 
@@ -251,7 +273,6 @@ public class Fachada implements FachadaLogistica {
             throw new ConflictException("La asignación no está en estado ASIGNADA");
         }
 
-        Deposito deposito = encontrarDepositoPorPaquete(paqueteDTO.id());
         Paquete paquete = buscarPaquete(deposito, paqueteDTO.id());
 
         asignacion.cambiarEstado(EstadoAsignacionEnum.COMPLETADA);
@@ -268,6 +289,15 @@ public class Fachada implements FachadaLogistica {
         fachadaDonaciones.cambiarEstadoDeDonacion(
             paquete.getDonacionId(),
             EstadoDonacionEnum.ACEPTADA
+        );
+
+        log.info(
+            "entrega.reportada paquete={} deposito={} necesidad={} cantidad={} donacion={}",
+            paquete.getId(),
+            deposito.getId(),
+            asignacion.getNecesidadId(),
+            asignacion.getCantidadAsignada(),
+            paquete.getDonacionId()
         );
     }
 
@@ -306,26 +336,48 @@ public class Fachada implements FachadaLogistica {
     public AsignacionDTO registrarResultadoMatchmaking(
         ResultadoMatchmakingRequest request
     ) {
+        return registrarResultadoMatchmakingDetallado(request).asignacion();
+    }
+
+    @Transactional
+    public MatchmakingRegistrationResult registrarResultadoMatchmakingDetallado(
+        ResultadoMatchmakingRequest request
+    ) {
         validarResultado(request);
 
-        Deposito deposito = depositoRepo.findById(request.depositoId())
+        Deposito deposito = depositoRepo.findByIdForUpdate(request.depositoId())
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
         Paquete paquete = buscarPaquete(deposito, request.paqueteId());
 
         if (paquete.getEstadoPaquete() == EstadoPaquete.EN_STOCK) {
-            return null;
+            log.info(
+                "matchmaking.resultado_duplicado paquete={} estado=EN_STOCK",
+                paquete.getId()
+            );
+            return new MatchmakingRegistrationResult(null, false, 0);
         }
 
         if (paquete.getEstadoPaquete() == EstadoPaquete.ASIGNADO) {
-            return asignacionRepo.findByPaqueteId(paquete.getId())
-                .map(mapper::toAsignacionDTO)
-                .orElseThrow(() ->
-                    new IllegalStateException("Paquete asignado sin asignación"));
+            Asignacion existente = asignacionRepo.findByPaqueteId(paquete.getId())
+                .orElseThrow(() -> new IllegalStateException("Paquete asignado sin asignación"));
+
+            log.info(
+                "matchmaking.resultado_duplicado paquete={} asignacion={}",
+                paquete.getId(),
+                existente.getId()
+            );
+            return new MatchmakingRegistrationResult(
+                mapper.toAsignacionDTO(existente),
+                false,
+                0
+            );
         }
 
         if (paquete.getEstadoPaquete() != EstadoPaquete.PENDIENTE) {
-            throw new ConflictException("El paquete no puede procesar un resultado de matchmaking");
+            throw new ConflictException(
+                "El paquete no puede procesar un resultado de matchmaking"
+            );
         }
 
         int cantidadOriginal = paquete.getCantidad();
@@ -339,15 +391,17 @@ public class Fachada implements FachadaLogistica {
         if (!request.tieneAsignacion()) {
             paquete.marcarEnStock();
             depositoRepo.save(deposito);
-            return null;
+
+            log.info(
+                "matchmaking.sin_asignacion paquete={} cantidad={} -> EN_STOCK",
+                paquete.getId(),
+                cantidadOriginal
+            );
+            return new MatchmakingRegistrationResult(null, true, cantidadOriginal);
         }
 
         if (request.cantidadAsignada() <= 0 || request.necesidadId() == null) {
             throw new BusinessRuleException("Resultado de asignación inválido");
-        }
-
-        if (request.cantidadSobrante() < 0) {
-            throw new BusinessRuleException("La cantidad sobrante no puede ser negativa");
         }
 
         paquete.setCantidad(request.cantidadAsignada());
@@ -361,11 +415,6 @@ public class Fachada implements FachadaLogistica {
             request.cantidadAsignada(),
             OrigenAsignacion.MATCHMAKING
         );
-
-        Asignacion existente = asignacionRepo.findByPaqueteId(paquete.getId()).orElse(null);
-        if (existente != null) {
-            return mapper.toAsignacionDTO(existente);
-        }
 
         Asignacion guardada = asignacionRepo.save(asignacion);
 
@@ -382,7 +431,20 @@ public class Fachada implements FachadaLogistica {
 
         depositoRepo.save(deposito);
 
-        return mapper.toAsignacionDTO(guardada);
+        log.info(
+            "matchmaking.asignado paquete={} asignacion={} necesidad={} cantidad={} sobrante={}",
+            paquete.getId(),
+            guardada.getId(),
+            request.necesidadId(),
+            request.cantidadAsignada(),
+            request.cantidadSobrante()
+        );
+
+        return new MatchmakingRegistrationResult(
+            mapper.toAsignacionDTO(guardada),
+            true,
+            request.cantidadSobrante()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -421,7 +483,21 @@ public class Fachada implements FachadaLogistica {
             throw new BusinessRuleException("La cantidad solicitada debe ser positiva");
         }
 
-        List<Deposito> depositos = depositoRepo.findAll();
+        List<Deposito> referencias = depositoRepo.findAll().stream()
+            .sorted(Comparator.comparing(Deposito::getId))
+            .toList();
+
+        List<Deposito> depositos = new ArrayList<>();
+        for (Deposito referencia : referencias) {
+            depositos.add(
+                depositoRepo.findByIdForUpdate(referencia.getId())
+                    .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                            "Depósito no encontrado durante la asignación de stock"
+                        ))
+            );
+        }
+
         int stockDisponible = depositos.stream()
             .mapToInt(deposito -> deposito.stockDisponible(productoId))
             .sum();
@@ -477,6 +553,16 @@ public class Fachada implements FachadaLogistica {
                 depositoRepo.save(deposito);
                 asignaciones.add(mapper.toAsignacionDTO(guardada));
                 cantidadRestante -= cantidadAsignar;
+
+                log.info(
+                    "stock.asignado deposito={} paquete={} asignacion={} necesidad={} cantidad={} sobrante={}",
+                    deposito.getId(),
+                    paquete.getId(),
+                    guardada.getId(),
+                    necesidadId,
+                    cantidadAsignar,
+                    sobrante
+                );
             }
         }
 

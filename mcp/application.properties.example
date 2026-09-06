@@ -1,0 +1,6 @@
+# Future MCP local process.
+# The MCP implementation must call the existing Logística REST API.
+logistica.api-url=http://localhost:8080
+
+# The MCP will be local and communicate with Claude Desktop through STDIO.
+# No database credentials belong here.

@@ -8,5 +8,16 @@ public record DonacionPendienteMessage(
     String donacionId,
     String productoId,
     Integer cantidad,
-    TipoAlgoritmoEnum algoritmo
-) {}
+    TipoAlgoritmoEnum algoritmo,
+    String traceId) {
+
+  public DonacionPendienteMessage(
+      String depositoId,
+      String paqueteId,
+      String donacionId,
+      String productoId,
+      Integer cantidad,
+      TipoAlgoritmoEnum algoritmo) {
+    this(depositoId, paqueteId, donacionId, productoId, cantidad, algoritmo, null);
+  }
+}
