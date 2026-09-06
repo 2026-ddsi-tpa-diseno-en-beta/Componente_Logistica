@@ -16,6 +16,8 @@ public class LogisticaMetrics {
     private final Counter asignacionesMatchmaking;
     private final Counter asignacionesSolicitudEntidad;
     private final Counter matchmakingSinAsignacion;
+    private final Counter matchmakingDuplicados;
+    private final Counter sobrantesGenerados;
 
     public LogisticaMetrics(
         MeterRegistry registry
@@ -59,6 +61,16 @@ public class LogisticaMetrics {
             Counter.builder("logistica.matchmaking.sin_asignacion")
             .description("Donaciones procesadas sin asignación")
             .register(registry);
+
+        matchmakingDuplicados =
+            Counter.builder("logistica.matchmaking.duplicados")
+            .description("Resultados de matchmaking recibidos nuevamente")
+            .register(registry);
+
+        sobrantesGenerados =
+            Counter.builder("logistica.sobrantes.generados")
+            .description("Paquetes de sobrante enviados a stock")
+            .register(registry);
     }
 
     public void depositoCreado() {
@@ -91,5 +103,13 @@ public class LogisticaMetrics {
 
     public void matchmakingSinAsignacion() {
         matchmakingSinAsignacion.increment();
+    }
+
+    public void matchmakingDuplicado() {
+        matchmakingDuplicados.increment();
+    }
+
+    public void sobranteGenerado() {
+        sobrantesGenerados.increment();
     }
 }

@@ -9,6 +9,8 @@ public interface DepositoRepository {
 
   Optional<Deposito> findById(String id);
 
+  Optional<Deposito> findByIdForUpdate(String id);
+
   List<Deposito> findAll();
 
   void deleteById(String id);

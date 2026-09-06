@@ -36,6 +36,11 @@ public class DepositoJpaRepositoryAdapter implements DepositoRepository {
   }
 
   @Override
+  public Optional<Deposito> findByIdForUpdate(String id) {
+    return jpaRepository.findLockedById(Long.valueOf(id)).map(mapper::toDeposito);
+  }
+
+  @Override
   public List<Deposito> findAll() {
     return jpaRepository.findAll().stream().map(mapper::toDeposito).collect(Collectors.toList());
   }

@@ -1,6 +1,7 @@
 package ar.edu.utn.dds.k3003.controllers;
 
 import ar.edu.utn.dds.k3003.services.LogisticaService;
+import ar.edu.utn.dds.k3003.services.MatchmakingRegistrationResult;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO;
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
 import ar.edu.utn.dds.k3003.metrics.LogisticaMetrics;
@@ -34,16 +35,25 @@ public class MatchmakingInternalController {
     public ResponseEntity<AsignacionDTO> registrarResultado(
         @Valid @RequestBody ResultadoMatchmakingRequest request
     ) {
-        AsignacionDTO resultado =
-            service.registrarResultadoMatchmaking(request);
+        MatchmakingRegistrationResult registro =
+            service.registrarResultadoMatchmakingDetallado(request);
 
-        if (resultado == null) {
-            metrics.matchmakingSinAsignacion();
+        if (!registro.nuevo())
+            metrics.matchmakingDuplicado();
+
+        if (!registro.tieneAsignacion()) {
+            if (registro.nuevo())
+                metrics.matchmakingSinAsignacion();
+
             return ResponseEntity.noContent().build();
         }
 
-        metrics.asignacionMatchmaking();
+        if (registro.nuevo()) {
+            metrics.asignacionMatchmaking();
+            if (registro.cantidadSobrante() > 0)
+                metrics.sobranteGenerado();
+        }
 
-        return ResponseEntity.ok(resultado);
+        return ResponseEntity.ok(registro.asignacion());
     }
 }
