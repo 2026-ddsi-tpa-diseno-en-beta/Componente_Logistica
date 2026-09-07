@@ -8,6 +8,8 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMateri
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
 import ar.edu.utn.dds.k3003.integration.FachadaDonadoresYEntidadesHttp;
 import ar.edu.utn.dds.k3003.messaging.dto.DonacionPendienteMessage;
+import ar.edu.utn.dds.k3003.metrics.WorkerMetrics;
+import ar.edu.utn.dds.k3003.observability.InstanceInfo;
 import ar.edu.utn.dds.k3003.services.MatchmakingService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,8 @@ class AsignacionWorkerTest {
     FachadaDonadoresYEntidadesHttp donadores = mock(FachadaDonadoresYEntidadesHttp.class);
     MatchmakingService matchmaking = new MatchmakingService();
     LogisticaInternalClient logistica = mock(LogisticaInternalClient.class);
+    WorkerMetrics metrics = mock(WorkerMetrics.class);
+    InstanceInfo instanceInfo = new InstanceInfo("worker-test", "worker");
 
     when(donadores.obtenerNecesidadesInsatisfechasDe("producto1"))
         .thenReturn(
@@ -34,7 +38,7 @@ class AsignacionWorkerTest {
     when(logistica.cantidadAsignada("necesidad1")).thenReturn(0);
 
     AsignacionWorker worker =
-        new AsignacionWorker(donadores, matchmaking, logistica);
+        new AsignacionWorker(donadores, matchmaking, logistica, metrics, instanceInfo);
 
     worker.procesar(
         new DonacionPendienteMessage(
@@ -43,5 +47,7 @@ class AsignacionWorkerTest {
 
     verify(logistica).cantidadAsignada("necesidad1");
     verify(logistica).registrarResultado(any(ResultadoMatchmakingRequest.class));
+    verify(metrics).callbackExitoso();
+    verify(metrics).mensajeProcesado();
   }
 }
