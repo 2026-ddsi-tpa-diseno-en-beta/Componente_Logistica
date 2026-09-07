@@ -70,6 +70,11 @@ public class LogisticaService {
     return fachada.registrarResultadoMatchmaking(request);
   }
 
+  public MatchmakingRegistrationResult registrarResultadoMatchmakingDetallado(
+      ResultadoMatchmakingRequest request) {
+    return fachada.registrarResultadoMatchmakingDetallado(request);
+  }
+
   public int cantidadAsignadaPorNecesidad(String necesidadId) {
     return fachada.cantidadAsignadaPorNecesidad(necesidadId);
   }

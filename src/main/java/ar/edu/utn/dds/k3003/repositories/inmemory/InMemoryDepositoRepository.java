@@ -40,6 +40,11 @@ public class InMemoryDepositoRepository implements DepositoRepository {
     }
 
     @Override
+    public Optional<Deposito> findByIdForUpdate(String id) {
+        return findById(id);
+    }
+
+    @Override
     public List<Deposito> findAll() {
         return new ArrayList<>(depositos.values());
     }
