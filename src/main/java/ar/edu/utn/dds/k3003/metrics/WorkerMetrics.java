@@ -2,15 +2,20 @@ package ar.edu.utn.dds.k3003.metrics;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 
+@Component
 public class WorkerMetrics {
 
   private final Counter mensajesProcesados;
   private final Counter errores;
   private final Counter callbacksExitosos;
 
-  public WorkerMetrics(MeterRegistry registry, String workerId) {
-
+  public WorkerMetrics(
+    MeterRegistry registry,
+    @Value("${worker.id:worker-local}") String workerId
+  ) {
     mensajesProcesados =
         Counter.builder("logistica.worker.mensajes.procesados")
             .description("Mensajes de matchmaking procesados por el worker")
