@@ -1,8 +1,10 @@
 package ar.edu.utn.dds.k3003.worker;
 
 import ar.edu.utn.dds.k3003.integration.FachadaDonadoresYEntidadesHttp;
+import ar.edu.utn.dds.k3003.metrics.WorkerMetrics;
 import ar.edu.utn.dds.k3003.services.AdminDbService;
 import ar.edu.utn.dds.k3003.services.LogisticaService;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
