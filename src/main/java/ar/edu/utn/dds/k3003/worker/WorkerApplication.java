@@ -26,7 +26,9 @@ import org.springframework.context.annotation.FilterType;
     basePackages = {
         "ar.edu.utn.dds.k3003.worker",
         "ar.edu.utn.dds.k3003.messaging",
-        "ar.edu.utn.dds.k3003.services"
+        "ar.edu.utn.dds.k3003.services",
+        "ar.edu.utn.dds.k3003.observability",
+        "ar.edu.utn.dds.k3003.metrics"
     },
     excludeFilters = {
         @ComponentScan.Filter(
@@ -54,5 +56,12 @@ public class WorkerApplication {
         return new FachadaDonadoresYEntidadesHttp(
             donadoresUrl
         );
+    }
+
+    WorkerMetrics workerMetrics(
+        MeterRegistry registry,
+        @Value("${worker.id:worker-local}") String workerId
+    ) {
+        return new WorkerMetrics(registry, workerId);
     }
 }
