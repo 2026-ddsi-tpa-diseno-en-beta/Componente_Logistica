@@ -12,9 +12,15 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import ar.edu.utn.dds.k3003.metrics.LogisticaMetrics;
+// === LOGGING CENTRALIZADO ===
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+  // === LOGGING CENTRALIZADO ===
+  private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
   private final LogisticaMetrics metrics;
 
@@ -63,6 +69,9 @@ public class ApiExceptionHandler {
       HttpServletRequest request
   ) {
     metrics.error();
+
+    // parte de Logging
+    log.error("Error inesperado procesando el request a {}", request.getRequestURI(), ex);
 
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(new ErrorResponse(
