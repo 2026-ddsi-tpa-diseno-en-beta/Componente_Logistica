@@ -12,12 +12,20 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import org.springframework.web.client.RestClient;
 import org.springframework.core.ParameterizedTypeReference;
+// Logging
+import ar.edu.utn.dds.k3003.observability.TracePropagationInterceptor;
 
 public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidades {
   private final RestClient restClient;
 
   public FachadaDonadoresYEntidadesHttp(String baseUrl) {
-    this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+    this.restClient = RestClient.builder()
+        .baseUrl(baseUrl)
+        // Usada tanto por la API como por el worker (vía WorkerApplication) para
+        // pedir necesidades insatisfechas durante el matchmaking: con esto ese
+        // llamado también viaja con el traceId del mensaje de Rabbit que lo originó.
+        .requestInterceptor(new TracePropagationInterceptor())
+        .build();
   }
 
   @Override

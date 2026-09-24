@@ -14,6 +14,8 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donaciones.ProductoDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaLogistica;
+// Logging
+import ar.edu.utn.dds.k3003.observability.TracePropagationInterceptor;
 
 public class FachadaDonacionesHttp implements FachadaDonaciones{
      private final RestClient restClient;
@@ -21,6 +23,7 @@ public class FachadaDonacionesHttp implements FachadaDonaciones{
     public FachadaDonacionesHttp(String baseUrl) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
+                .requestInterceptor(new TracePropagationInterceptor())
                 .build();
     }
 

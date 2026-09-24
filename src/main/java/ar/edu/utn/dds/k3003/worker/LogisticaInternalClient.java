@@ -1,6 +1,10 @@
 package ar.edu.utn.dds.k3003.worker;
 
 import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingRequest;
+
+// Logging
+import ar.edu.utn.dds.k3003.observability.TracePropagationInterceptor;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -18,6 +22,11 @@ public class LogisticaInternalClient {
     ) {
         this.client = RestClient.builder()
             .baseUrl(baseUrl)
+            // El worker ya tiene el traceId en su MDC (lo colocó AsignacionWorker al
+            // recibir el mensaje de Rabbit). Con este interceptor, la API recibe 
+            // el mismo traceId que el worker y todo
+            // el flujo (Rabbit -> worker -> API) queda correlacionado.
+            .requestInterceptor(new TracePropagationInterceptor())
             .build();
     }
 
