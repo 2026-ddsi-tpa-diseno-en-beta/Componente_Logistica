@@ -206,4 +206,20 @@ public class LogisticaController {
 
       return ResponseEntity.ok(asignaciones);
   }
+
+  @PutMapping("/depositos/{id}")
+  public ResponseEntity<DepositoDTO> modificarDeposito(@PathVariable String id, @RequestBody DepositoDTO dto) {
+    return ResponseEntity.ok(service.modificarDeposito(id, dto));
+  }
+  @GetMapping("/asignaciones")
+  public ResponseEntity<List<AsignacionDTO>> listarAsignaciones() { return ResponseEntity.ok(service.listarAsignaciones()); }
+
+  public record EntregaLoteRequest(List<String> paqueteIds) {}
+  @PostMapping("/entregas/lote")
+  public ResponseEntity<MensajeResponse> entregarLote(@RequestBody EntregaLoteRequest request) {
+    service.reportarEntregaLote(request.paqueteIds());
+    metrics.entregaReportada();
+    return ResponseEntity.ok(new MensajeResponse("Entrega conjunta registrada"));
+  }
+
 }

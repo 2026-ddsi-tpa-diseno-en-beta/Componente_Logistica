@@ -56,7 +56,8 @@ public class FachadaDonacionesHttp implements FachadaDonaciones{
 
     @Override
     public DonacionDTO buscarDonacionPorID(String donacionID) {
-        throw new UnsupportedOperationException();
+        return restClient.get().uri("/donaciones/{id}", donacionID)
+            .retrieve().body(DonacionDTO.class);
     }
 
     @Override

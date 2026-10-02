@@ -5,6 +5,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "logistica.messaging.enabled", havingValue = "true", matchIfMissing = true)
 public class DonacionRegistradaListener {
 
     private final DonacionProducer producer;

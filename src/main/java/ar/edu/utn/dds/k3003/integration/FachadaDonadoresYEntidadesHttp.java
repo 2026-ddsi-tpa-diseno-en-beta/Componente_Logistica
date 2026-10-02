@@ -15,8 +15,15 @@ import org.springframework.core.ParameterizedTypeReference;
 // Logging
 import ar.edu.utn.dds.k3003.observability.TracePropagationInterceptor;
 
-public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidades {
+public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidades, ConsultaPeriodoNecesidad {
   private final RestClient restClient;
+
+  @Override
+  public java.time.LocalDate inicioPeriodo(String necesidadId) {
+    java.util.Map<String, Object> body = restClient.get().uri("/necesidades/{id}/periodo", necesidadId)
+        .retrieve().body(new ParameterizedTypeReference<java.util.Map<String, Object>>() {});
+    return body == null || body.get("inicio") == null ? null : java.time.LocalDate.parse(body.get("inicio").toString());
+  }
 
   public FachadaDonadoresYEntidadesHttp(String baseUrl) {
     this.restClient = RestClient.builder()

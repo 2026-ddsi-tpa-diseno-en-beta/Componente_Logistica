@@ -78,4 +78,9 @@ public class LogisticaService {
   public int cantidadAsignadaPorNecesidad(String necesidadId) {
     return fachada.cantidadAsignadaPorNecesidad(necesidadId);
   }
+
+  public DepositoDTO modificarDeposito(String id, DepositoDTO dto) { return fachada.modificarDeposito(id, dto); }
+  public List<AsignacionDTO> listarAsignaciones() { return fachada.listarAsignaciones(); }
+  public void reportarEntregaLote(List<String> paquetes) { fachada.reportarEntregaLote(paquetes); }
+
 }
