@@ -15,6 +15,23 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class AsignacionWorkerTest {
+  @Test void errorDelWorkerSePropagaSinPerderElContextoPrevio() {
+    var donadores = mock(FachadaDonadoresYEntidadesHttp.class);
+    var metrics = mock(WorkerMetrics.class);
+    when(donadores.obtenerNecesidadesInsatisfechasDe("p"))
+        .thenThrow(new IllegalStateException("API no disponible"));
+    var worker = new AsignacionWorker(donadores, new MatchmakingService(),
+        mock(LogisticaInternalClient.class), metrics, new InstanceInfo("worker-2", "worker"));
+    org.slf4j.MDC.put("traceId", "contexto-previo");
+    try {
+      org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> worker.procesar(
+          new DonacionPendienteMessage("d", "p1", "donacion", "p", 10,
+              ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum.SUB_ATENDIDOS)));
+      verify(metrics).error();
+      verify(metrics, never()).callbackExitoso();
+      org.junit.jupiter.api.Assertions.assertEquals("contexto-previo", org.slf4j.MDC.get("traceId"));
+    } finally { org.slf4j.MDC.clear(); }
+  }
 
   @Test
   void procesaMensajeYPublicaResultado() {

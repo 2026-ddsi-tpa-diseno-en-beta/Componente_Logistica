@@ -51,8 +51,9 @@ public class AsignacionWorker {
 
     @RabbitListener(queues = RabbitConfiguration.QUEUE)
     public void procesar(DonacionPendienteMessage message) {
+        Map<String, String> previous = MDC.getCopyOfContextMap();
         String traceId = message.traceId();
-        if (traceId == null || traceId.isBlank()) {
+        if (traceId == null || !traceId.matches("[A-Za-z0-9_-]{1,128}")) {
             traceId = UUID.randomUUID().toString();
         }
 
@@ -128,6 +129,7 @@ public class AsignacionWorker {
         } finally {
             metrics.mensajeProcesado();
             MDC.clear();
+            if (previous != null) MDC.setContextMap(previous);
         }
     }
 }
