@@ -62,6 +62,10 @@ public class AsignacionWorker {
         MDC.put(TraceContext.COMPONENT, instanceInfo.getComponent());
         MDC.put(TraceContext.WORKER_ID, instanceInfo.getInstanceId());
 
+        long start = System.nanoTime();
+        metrics.intento();
+        MDC.put("donacionId", message.donacionId()); MDC.put("paqueteId", message.paqueteId());
+        MDC.put("event", "matchmaking.recibido");
         try {
             log.info(
                 "matchmaking.recibido paquete={} donacion={} producto={} algoritmo={}",
@@ -110,6 +114,12 @@ public class AsignacionWorker {
             );
 
             metrics.callbackExitoso();
+            metrics.mensajeProcesado();
+            metrics.resultado(necesidadId != null, !necesidadesSeguras.isEmpty());
+            MDC.put("event", "matchmaking.finalizado"); MDC.put("outcome", necesidadId == null ? "sin_asignacion" : "asignado");
+            if (necesidadId != null) MDC.put("necesidadId", necesidadId);
+            MDC.put("quantity", String.valueOf(resultado.cantidadAsignada()));
+            MDC.put("durationMs", String.valueOf((System.nanoTime() - start) / 1_000_000));
             log.info(
                 "matchmaking.finalizado paquete={} necesidad={} asignada={} sobrante={}",
                 message.paqueteId(),
@@ -119,6 +129,9 @@ public class AsignacionWorker {
             );
         } catch (RuntimeException ex) {
             metrics.error();
+            MDC.put("event", "matchmaking.error"); MDC.put("outcome", "error");
+            MDC.put("reason", ex.getClass().getSimpleName());
+            MDC.put("durationMs", String.valueOf((System.nanoTime() - start) / 1_000_000));
             log.error(
                 "matchmaking.error paquete={} donacion={}",
                 message.paqueteId(),
@@ -127,7 +140,7 @@ public class AsignacionWorker {
             );
             throw ex;
         } finally {
-            metrics.mensajeProcesado();
+            metrics.duracion(System.nanoTime() - start);
             MDC.clear();
             if (previous != null) MDC.setContextMap(previous);
         }

@@ -28,6 +28,8 @@ class AsignacionWorkerTest {
           new DonacionPendienteMessage("d", "p1", "donacion", "p", 10,
               ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum.SUB_ATENDIDOS)));
       verify(metrics).error();
+      verify(metrics).intento();
+      verify(metrics, never()).mensajeProcesado();
       verify(metrics, never()).callbackExitoso();
       org.junit.jupiter.api.Assertions.assertEquals("contexto-previo", org.slf4j.MDC.get("traceId"));
     } finally { org.slf4j.MDC.clear(); }
@@ -66,5 +68,7 @@ class AsignacionWorkerTest {
     verify(logistica).registrarResultado(any(ResultadoMatchmakingRequest.class));
     verify(metrics).callbackExitoso();
     verify(metrics).mensajeProcesado();
+    verify(metrics).intento();
+    verify(metrics).resultado(true, true);
   }
 }

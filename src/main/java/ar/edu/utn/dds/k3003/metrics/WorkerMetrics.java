@@ -9,6 +9,10 @@ import org.springframework.beans.factory.annotation.Value;
 public class WorkerMetrics {
 
   private final Counter mensajesProcesados;
+  private final Counter intentos;
+  private final io.micrometer.core.instrument.Timer duracion;
+  private final MeterRegistry registry;
+  private final String workerId;
   private final Counter errores;
   private final Counter callbacksExitosos;
 
@@ -16,6 +20,9 @@ public class WorkerMetrics {
     MeterRegistry registry,
     @Value("${worker.id:worker-local}") String workerId
   ) {
+    this.registry = registry; this.workerId = workerId;
+    intentos = registry.counter("logistica.worker.intentos", "worker_id", workerId);
+    duracion = io.micrometer.core.instrument.Timer.builder("logistica.worker.duracion").tag("worker_id", workerId).publishPercentileHistogram().register(registry);
     mensajesProcesados =
         Counter.builder("logistica.worker.mensajes.procesados")
             .description("Mensajes de matchmaking procesados por el worker")
@@ -35,6 +42,12 @@ public class WorkerMetrics {
             .register(registry);
   }
 
+  public void intento() { intentos.increment(); }
+  public void duracion(long nanos) { duracion.record(nanos, java.util.concurrent.TimeUnit.NANOSECONDS); }
+  public void resultado(boolean asignado, boolean hayNecesidades) {
+    registry.counter("logistica.worker.resultados", "worker_id", workerId, "resultado",
+        asignado ? "asignado" : hayNecesidades ? "sin_elegibles" : "sin_necesidades").increment();
+  }
   public void mensajeProcesado() {
     mensajesProcesados.increment();
   }

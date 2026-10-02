@@ -5,7 +5,7 @@
          Render captura stdout/stderr como logs del servicio de todas formas. -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36}.%method:%line [trace=%X{traceId} instance=%X{instanceId} component=%X{component} req=%X{requestId}] - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX,UTC} %-5level %logger{36}.%method:%line [trace=%X{traceId} instance=%X{instanceId} component=%X{component} req=%X{requestId}] - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -31,8 +31,8 @@
                 <appName>${APP_NAME:-donatrack-logistica}</appName>
                 <sourceToken>${BETTERSTACK_SOURCE_TOKEN}</sourceToken>
                 <ingestUrl>${BETTERSTACK_INGEST_URL:-https://in.logs.betterstack.com}</ingestUrl>
-                <mdcFields>traceId,requestId,instanceId,component,workerId</mdcFields>
-                <mdcTypes>string,string,string,string,string</mdcTypes>
+                <mdcFields>traceId,requestId,instanceId,component,workerId,event,outcome,destination,status,durationMs,donacionId,paqueteId,necesidadId,quantity,reason,donadorId,misionId,id,tipo,objetivo,reservada,categoria</mdcFields>
+                <mdcTypes>string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string,string</mdcTypes>
             </appender>
 
             <root level="INFO">

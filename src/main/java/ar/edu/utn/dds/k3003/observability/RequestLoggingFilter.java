@@ -53,16 +53,24 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     log.info("--> {} {}", request.getMethod(), request.getRequestURI());
 
+    boolean failed = false;
     try {
       response.setHeader(TraceContext.TRACE_ID_HEADER, traceId);
       chain.doFilter(request, response);
+    } catch (IOException | ServletException | RuntimeException ex) {
+      failed = true;
+      throw ex;
     } finally {
       long took = System.currentTimeMillis() - start;
+      int status = failed ? 500 : response.getStatus();
+      MDC.put("event", "http.finalizado"); MDC.put("status", String.valueOf(status));
+      MDC.put("durationMs", String.valueOf(took));
+      MDC.put("outcome", status >= 500 ? "error" : status >= 400 ? "rechazada" : "ok");
       log.info(
           "<-- {} {} status={} took={}ms",
           request.getMethod(),
           request.getRequestURI(),
-          response.getStatus(),
+          status,
           took);
       if (previous == null) MDC.clear(); else MDC.setContextMap(previous);
     }

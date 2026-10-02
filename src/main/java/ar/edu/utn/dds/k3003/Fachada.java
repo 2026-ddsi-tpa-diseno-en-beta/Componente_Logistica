@@ -203,7 +203,7 @@ public class Fachada implements FachadaLogistica {
             )
         );
 
-        log.info(
+        ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
             "donacion.registrada deposito={} paquete={} donacion={} producto={} cantidad={} algoritmo={}",
             guardado.getId(),
             paquete.getId(),
@@ -292,7 +292,9 @@ public class Fachada implements FachadaLogistica {
 
         aceptarDonacion(paquete.getDonacionId());
 
-        log.info(
+        registrarDuracionEntrega(asignacion);
+
+        ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
             "entrega.reportada paquete={} deposito={} necesidad={} cantidad={} donacion={}",
             paquete.getId(),
             deposito.getId(),
@@ -352,7 +354,7 @@ public class Fachada implements FachadaLogistica {
         Paquete paquete = buscarPaquete(deposito, request.paqueteId());
 
         if (paquete.getEstadoPaquete() == EstadoPaquete.EN_STOCK) {
-            log.info(
+            ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
                 "matchmaking.resultado_duplicado paquete={} estado=EN_STOCK",
                 paquete.getId()
             );
@@ -363,7 +365,7 @@ public class Fachada implements FachadaLogistica {
             Asignacion existente = asignacionRepo.findByPaqueteId(paquete.getId())
                 .orElseThrow(() -> new IllegalStateException("Paquete asignado sin asignación"));
 
-            log.info(
+            ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
                 "matchmaking.resultado_duplicado paquete={} asignacion={}",
                 paquete.getId(),
                 existente.getId()
@@ -393,7 +395,7 @@ public class Fachada implements FachadaLogistica {
             paquete.marcarEnStock();
             depositoRepo.save(deposito);
 
-            log.info(
+            ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
                 "matchmaking.sin_asignacion paquete={} cantidad={} -> EN_STOCK",
                 paquete.getId(),
                 cantidadOriginal
@@ -432,7 +434,7 @@ public class Fachada implements FachadaLogistica {
 
         depositoRepo.save(deposito);
 
-        log.info(
+        ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
             "matchmaking.asignado paquete={} asignacion={} necesidad={} cantidad={} sobrante={}",
             paquete.getId(),
             guardada.getId(),
@@ -557,7 +559,7 @@ public class Fachada implements FachadaLogistica {
                 asignaciones.add(mapper.toAsignacionDTO(guardada));
                 cantidadRestante -= cantidadAsignar;
 
-                log.info(
+                ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
                     "stock.asignado deposito={} paquete={} asignacion={} necesidad={} cantidad={} sobrante={}",
                     deposito.getId(),
                     paquete.getId(),
@@ -691,6 +693,21 @@ public class Fachada implements FachadaLogistica {
         return depositoRepo.findAll().stream().mapToInt(Deposito::getCapacidadMaxima).sum();
     }
 
+    public record DepositoSnapshot(String id, double ocupacion, double capacidad) {}
+    public record OperacionSnapshot(List<DepositoSnapshot> depositos, double reservadas, LocalDateTime oldest) {}
+
+    @Transactional(readOnly = true)
+    public OperacionSnapshot observabilitySnapshot() {
+        List<DepositoSnapshot> deposits = depositoRepo.findAll().stream().map(d ->
+            new DepositoSnapshot(d.getId(), d.ocupacionActual(), d.getCapacidadMaxima())).toList();
+        var pending = asignacionRepo.findAll().stream()
+            .filter(a -> a.getEstado() == EstadoAsignacionEnum.ASIGNADA).toList();
+        double reserved = pending.stream().mapToInt(Asignacion::getCantidadAsignada).sum();
+        LocalDateTime oldest = pending.stream().map(Asignacion::getFecha).filter(Objects::nonNull)
+            .min(LocalDateTime::compareTo).orElse(null);
+        return new OperacionSnapshot(deposits, reserved, oldest);
+    }
+
     private java.time.LocalDate inicioPeriodo(String necesidadId) {
         return fachadaDonadores instanceof ar.edu.utn.dds.k3003.integration.ConsultaPeriodoNecesidad consulta
             ? consulta.inicioPeriodo(necesidadId) : null;
@@ -727,7 +744,8 @@ public class Fachada implements FachadaLogistica {
         }
         depositos.values().forEach(depositoRepo::save);
         for (String id : donaciones) aceptarDonacion(id);
-        log.info("entrega.lote_reportada necesidad={} paquetes={} cantidad={}", necesidad, paqueteIds.size(), cantidad);
+        asignaciones.forEach(this::registrarDuracionEntrega);
+        ar.edu.utn.dds.k3003.observability.DomainEvents.info(log, "entrega.lote_reportada necesidad={} paquetes={} cantidad={}", necesidad, paqueteIds.size(), cantidad);
     }
 
     private void aceptarDonacion(String id) {
@@ -735,5 +753,17 @@ public class Fachada implements FachadaLogistica {
         if (donacion == null || donacion.estado() != EstadoDonacionEnum.CONQUEJA)
             fachadaDonaciones.cambiarEstadoDeDonacion(id, EstadoDonacionEnum.ACEPTADA);
     }
+
+    private void registrarDuracionEntrega(Asignacion asignacion) {
+        if (asignacion.getFecha() == null) return;
+        java.time.Duration elapsed = java.time.Duration.between(asignacion.getFecha(), LocalDateTime.now());
+        if (elapsed.isNegative()) return;
+        io.micrometer.core.instrument.Timer.builder("logistica.entregas.duracion")
+            .description("Desde asignación hasta entrega física, por paquete")
+            .tag("origen", asignacion.getOrigen() == null ? "DESCONOCIDO" : asignacion.getOrigen().name())
+            .minimumExpectedValue(java.time.Duration.ofSeconds(1))
+            .maximumExpectedValue(java.time.Duration.ofDays(7))
+            .publishPercentileHistogram().register(io.micrometer.core.instrument.Metrics.globalRegistry).record(elapsed);
+}
 
 }
