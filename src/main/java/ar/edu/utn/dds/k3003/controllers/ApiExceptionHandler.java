@@ -77,7 +77,25 @@ public class ApiExceptionHandler {
         .body(new ErrorResponse(
             LocalDateTime.now(),
             "INTERNAL_ERROR",
-            ex.getMessage(),
+            "Error interno del servidor",
             request.getRequestURI()));
+  }
+
+  @ExceptionHandler({IllegalArgumentException.class,
+      org.springframework.http.converter.HttpMessageNotReadableException.class,
+      org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+      org.springframework.web.bind.MissingServletRequestParameterException.class})
+  public ResponseEntity<ErrorResponse> handleInvalid(Exception ex, HttpServletRequest request) {
+    metrics.error();
+    return ResponseEntity.badRequest().body(new ErrorResponse(LocalDateTime.now(), "INVALID_REQUEST",
+        "Datos o parámetros inválidos", request.getRequestURI()));
+  }
+
+  @ExceptionHandler(org.springframework.web.client.RestClientException.class)
+  public ResponseEntity<ErrorResponse> handleRemote(Exception ex, HttpServletRequest request) {
+    metrics.error();
+    log.error("integracion.error ruta={}", request.getRequestURI(), ex);
+    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new ErrorResponse(LocalDateTime.now(),
+        "INTEGRATION_ERROR", "No se pudo comunicar con otro componente", request.getRequestURI()));
   }
 }

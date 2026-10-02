@@ -32,12 +32,12 @@ public class DepositoJpaRepositoryAdapter implements DepositoRepository {
 
   @Override
   public Optional<Deposito> findById(String id) {
-    return jpaRepository.findById(Long.valueOf(id)).map(mapper::toDeposito);
+    return jpaRepository.findById(IdsPersistidos.numerico(id)).map(mapper::toDeposito);
   }
 
   @Override
   public Optional<Deposito> findByIdForUpdate(String id) {
-    return jpaRepository.findLockedById(Long.valueOf(id)).map(mapper::toDeposito);
+    return jpaRepository.findLockedById(IdsPersistidos.numerico(id)).map(mapper::toDeposito);
   }
 
   @Override
@@ -47,7 +47,7 @@ public class DepositoJpaRepositoryAdapter implements DepositoRepository {
 
   @Override
   public void deleteById(String id) {
-    jpaRepository.deleteById(Long.valueOf(id));
+    jpaRepository.deleteById(IdsPersistidos.numerico(id));
   }
 
   @Override

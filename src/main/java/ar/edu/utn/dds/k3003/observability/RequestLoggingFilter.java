@@ -37,12 +37,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
 
     String traceId = request.getHeader(TraceContext.TRACE_ID_HEADER);
-    if (traceId == null || traceId.isBlank()) {
+    if (traceId == null || !traceId.matches("[A-Za-z0-9._-]{1,128}")) {
       traceId = UUID.randomUUID().toString();
     }
 
     String requestId = UUID.randomUUID().toString();
 
+    java.util.Map<String, String> previous = MDC.getCopyOfContextMap();
     MDC.put(TraceContext.TRACE_ID, traceId);
     MDC.put(TraceContext.REQUEST_ID, requestId);
     MDC.put(TraceContext.INSTANCE_ID, instanceInfo.getInstanceId());
@@ -63,7 +64,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
           request.getRequestURI(),
           response.getStatus(),
           took);
-      MDC.clear();
+      if (previous == null) MDC.clear(); else MDC.setContextMap(previous);
     }
   }
 }

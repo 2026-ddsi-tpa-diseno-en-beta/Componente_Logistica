@@ -22,6 +22,7 @@ public class FachadaDonacionesHttp implements FachadaDonaciones{
 
     public FachadaDonacionesHttp(String baseUrl) {
         this.restClient = RestClient.builder()
+                .requestFactory(ar.edu.utn.dds.k3003.observability.HttpClients.requestFactory())
                 .baseUrl(baseUrl)
                 .requestInterceptor(new TracePropagationInterceptor())
                 .build();

@@ -27,6 +27,7 @@ public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidade
 
   public FachadaDonadoresYEntidadesHttp(String baseUrl) {
     this.restClient = RestClient.builder()
+        .requestFactory(ar.edu.utn.dds.k3003.observability.HttpClients.requestFactory())
         .baseUrl(baseUrl)
         // Usada tanto por la API como por el worker (vía WorkerApplication) para
         // pedir necesidades insatisfechas durante el matchmaking: con esto ese

@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.*;
 import org.springframework.stereotype.Component;
 
 @Component
+@org.springframework.context.annotation.Profile("!worker")
 public class StockMetrics {
   public StockMetrics(MeterRegistry registry, Fachada fachada) {
     Gauge.builder("logistica.paquetes.pendientes", fachada, Fachada::paquetesPendientes)

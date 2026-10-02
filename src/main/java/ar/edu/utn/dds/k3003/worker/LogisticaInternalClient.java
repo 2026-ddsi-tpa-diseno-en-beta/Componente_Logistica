@@ -21,6 +21,7 @@ public class LogisticaInternalClient {
         @Value("${logistica.api-url}") String baseUrl
     ) {
         this.client = RestClient.builder()
+            .requestFactory(ar.edu.utn.dds.k3003.observability.HttpClients.requestFactory())
             .baseUrl(baseUrl)
             // El worker ya tiene el traceId en su MDC (lo colocó AsignacionWorker al
             // recibir el mensaje de Rabbit). Con este interceptor, la API recibe 

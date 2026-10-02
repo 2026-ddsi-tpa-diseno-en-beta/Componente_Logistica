@@ -29,13 +29,13 @@ public class AsignacionJpaRepositoryAdapter implements AsignacionRepository {
 
   @Override
   public Optional<Asignacion> findById(String id) {
-    return jpaRepository.findById(Long.valueOf(id)).map(mapper::toAsignacion);
+    return jpaRepository.findById(IdsPersistidos.numerico(id)).map(mapper::toAsignacion);
   }
 
   @Override
   public Optional<Asignacion> findByPaqueteId(String paqueteId) {
     return jpaRepository
-        .findByPaquete_Id(Long.valueOf(paqueteId))
+        .findByPaquete_Id(IdsPersistidos.numerico(paqueteId))
         .map(mapper::toAsignacion);
   }
 
