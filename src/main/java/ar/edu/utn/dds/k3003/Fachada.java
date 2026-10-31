@@ -16,6 +16,7 @@ import ar.edu.utn.dds.k3003.exceptions.BusinessRuleException;
 import ar.edu.utn.dds.k3003.exceptions.ConflictException;
 import ar.edu.utn.dds.k3003.exceptions.ResourceNotFoundException;
 import ar.edu.utn.dds.k3003.messaging.DonacionRegistradaEvent;
+import ar.edu.utn.dds.k3003.messaging.ReadModelEventPublisher;
 import ar.edu.utn.dds.k3003.messaging.dto.DonacionPendienteMessage;
 import ar.edu.utn.dds.k3003.model.Asignacion;
 import ar.edu.utn.dds.k3003.model.Deposito;
@@ -37,6 +38,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +59,9 @@ public class Fachada implements FachadaLogistica {
     private final LogisticaDataMapper mapper;
     private final MatchmakingService matchmakingService;
     private final ApplicationEventPublisher eventPublisher;
+
+    @Autowired(required = false)
+    private ReadModelEventPublisher readModelEventPublisher;
 
     private FachadaDonadoresYEntidades fachadaDonadores;
     private FachadaDonaciones fachadaDonaciones;
@@ -101,6 +107,7 @@ public class Fachada implements FachadaLogistica {
 
         Deposito deposito = mapper.toDeposito(depositoDto);
         Deposito guardado = depositoRepo.save(deposito);
+        publicarEvento("deposito", guardado.getId(), "UPSERT", snapshotDeposito(guardado));
         return mapper.toDepositoDTO(guardado);
     }
 
@@ -130,6 +137,7 @@ public class Fachada implements FachadaLogistica {
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
         if (!deposito.getStockActual().isEmpty()) throw new ConflictException("El depósito tiene paquetes; no se puede borrar su trazabilidad");
         depositoRepo.deleteById(depositoID);
+        publicarEvento("deposito", depositoID, "DELETE", Map.of());
     }
 
     @Override
@@ -145,7 +153,8 @@ public class Fachada implements FachadaLogistica {
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
         deposito.setTipoAlgoritmo(tipoAlgoritmo);
-        depositoRepo.save(deposito);
+        Deposito guardado = depositoRepo.save(deposito);
+        publicarEvento("deposito", guardado.getId(), "UPSERT", snapshotDeposito(guardado));
     }
 
     @Override
@@ -188,6 +197,9 @@ public class Fachada implements FachadaLogistica {
         if (paquete.getId() == null) {
             throw new IllegalStateException("No se pudo identificar el paquete persistido");
         }
+
+        publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(guardado.getId(), paquete));
+        publicarEvento("deposito", guardado.getId(), "UPSERT", snapshotDeposito(guardado));
 
         eventPublisher.publishEvent(
             new DonacionRegistradaEvent(
@@ -291,6 +303,9 @@ public class Fachada implements FachadaLogistica {
         depositoRepo.save(deposito);
 
         aceptarDonacion(paquete.getDonacionId());
+        publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete));
+        publicarEvento("asignacion", asignacion.getId(), "UPSERT", snapshotAsignacion(deposito, asignacion));
+        publicarEvento("deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito));
 
         registrarDuracionEntrega(asignacion);
 
@@ -393,7 +408,9 @@ public class Fachada implements FachadaLogistica {
 
         if (!request.tieneAsignacion()) {
             paquete.marcarEnStock();
-            depositoRepo.save(deposito);
+            deposito = depositoRepo.save(deposito);
+            publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete));
+            publicarEvento("deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito));
 
             ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
                 "matchmaking.sin_asignacion paquete={} cantidad={} -> EN_STOCK",
@@ -432,7 +449,11 @@ public class Fachada implements FachadaLogistica {
             );
         }
 
-        depositoRepo.save(deposito);
+        deposito = depositoRepo.save(deposito);
+        publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete));
+        publicarEvento("asignacion", guardada.getId(), "UPSERT", snapshotAsignacion(deposito, guardada));
+        publicarEvento("deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito));
+        publicarPaquetes(deposito);
 
         ar.edu.utn.dds.k3003.observability.DomainEvents.info(log,
             "matchmaking.asignado paquete={} asignacion={} necesidad={} cantidad={} sobrante={}",
@@ -556,6 +577,8 @@ public class Fachada implements FachadaLogistica {
                 }
 
                 depositoRepo.save(deposito);
+                publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete));
+                publicarEvento("asignacion", guardada.getId(), "UPSERT", snapshotAsignacion(deposito, guardada));
                 asignaciones.add(mapper.toAsignacionDTO(guardada));
                 cantidadRestante -= cantidadAsignar;
 
@@ -571,6 +594,10 @@ public class Fachada implements FachadaLogistica {
             }
         }
 
+        depositos.forEach(deposito -> {
+            publicarEvento("deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito));
+            publicarPaquetes(deposito);
+        });
         return asignaciones;
     }
 
@@ -581,7 +608,9 @@ public class Fachada implements FachadaLogistica {
     ) {
         if (!resultado.tieneAsignacion()) {
             paquete.marcarEnStock();
-            depositoRepo.save(deposito);
+            deposito = depositoRepo.save(deposito);
+            publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete));
+            publicarEvento("deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito));
             return null;
         }
 
@@ -617,7 +646,11 @@ public class Fachada implements FachadaLogistica {
             );
         }
 
-        depositoRepo.save(deposito);
+        deposito = depositoRepo.save(deposito);
+        publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete));
+        publicarEvento("asignacion", guardada.getId(), "UPSERT", snapshotAsignacion(deposito, guardada));
+        publicarEvento("deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito));
+        publicarPaquetes(deposito);
         return mapper.toAsignacionDTO(guardada);
     }
 
@@ -672,7 +705,9 @@ public class Fachada implements FachadaLogistica {
         Deposito deposito = depositoRepo.findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
         if (dto.capacidadMaxima() < deposito.ocupacionActual()) throw new ConflictException("La capacidad no puede ser menor que la ocupación actual");
         deposito.setNombre(dto.nombre()); deposito.setDireccion(dto.direccion()); deposito.setCapacidadMaxima(dto.capacidadMaxima());
-        return mapper.toDepositoDTO(depositoRepo.save(deposito));
+        Deposito guardado = depositoRepo.save(deposito);
+        publicarEvento("deposito", guardado.getId(), "UPSERT", snapshotDeposito(guardado));
+        return mapper.toDepositoDTO(guardado);
     }
     @Transactional(readOnly = true)
     public List<AsignacionDTO> listarAsignaciones() {
@@ -743,6 +778,16 @@ public class Fachada implements FachadaLogistica {
             paquete.marcarEntregado(); donaciones.add(paquete.getDonacionId());
         }
         depositos.values().forEach(depositoRepo::save);
+        for (Asignacion asignacion : confirmadas) {
+            Deposito depositoAsignacion = depositos.values().stream()
+                .filter(d -> d.getStockActual().stream().anyMatch(p -> p.getId().equals(asignacion.getPaqueteId())))
+                .findFirst().orElseThrow();
+            Paquete paquete = buscarPaquete(depositoAsignacion, asignacion.getPaqueteId());
+            publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(depositoAsignacion.getId(), paquete));
+            publicarEvento("asignacion", asignacion.getId(), "UPSERT", snapshotAsignacion(depositoAsignacion, asignacion));
+        }
+        depositos.values().forEach(deposito -> publicarEvento(
+            "deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito)));
         for (String id : donaciones) aceptarDonacion(id);
         asignaciones.forEach(this::registrarDuracionEntrega);
         ar.edu.utn.dds.k3003.observability.DomainEvents.info(log, "entrega.lote_reportada necesidad={} paquetes={} cantidad={}", necesidad, paqueteIds.size(), cantidad);
@@ -765,5 +810,61 @@ public class Fachada implements FachadaLogistica {
             .maximumExpectedValue(java.time.Duration.ofDays(7))
             .publishPercentileHistogram().register(io.micrometer.core.instrument.Metrics.globalRegistry).record(elapsed);
 }
+
+    private void publicarEvento(
+        String tipo, String id, String operacion, Map<String, Object> payload
+    ) {
+        if (readModelEventPublisher != null) {
+            readModelEventPublisher.publicar(tipo, id, operacion, payload);
+        }
+    }
+
+    private void publicarPaquetes(Deposito deposito) {
+        deposito.getStockActual().forEach(paquete -> publicarEvento(
+            "paquete", paquete.getId(), "UPSERT", snapshotPaquete(deposito.getId(), paquete)));
+    }
+
+    private Map<String, Object> snapshotDeposito(Deposito deposito) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", deposito.getId());
+        snapshot.put("nombre", deposito.getNombre());
+        snapshot.put("direccion", deposito.getDireccion());
+        snapshot.put("capacidadMaxima", deposito.getCapacidadMaxima());
+        snapshot.put("algoritmo", deposito.getTipoAlgoritmo() == null ? null : deposito.getTipoAlgoritmo().name());
+        snapshot.put("ocupacionActual", deposito.ocupacionActual());
+        snapshot.put("stockActual", deposito.getStockActual().stream()
+            .map(paquete -> snapshotPaquete(deposito.getId(), paquete)).toList());
+        return snapshot;
+    }
+
+    private Map<String, Object> snapshotPaquete(String depositoId, Paquete paquete) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", paquete.getId());
+        snapshot.put("depositoID", depositoId);
+        snapshot.put("donacionID", paquete.getDonacionId());
+        snapshot.put("productoID", paquete.getProducto());
+        snapshot.put("cantidad", paquete.getCantidad());
+        snapshot.put("estado", paquete.getEstadoPaquete() == null ? null : paquete.getEstadoPaquete().name());
+        return snapshot;
+    }
+
+    private Map<String, Object> snapshotAsignacion(Deposito deposito, Asignacion asignacion) {
+        Paquete paquete = buscarPaquete(deposito, asignacion.getPaqueteId());
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", asignacion.getId());
+        snapshot.put("depositoID", deposito.getId());
+        snapshot.put("paqueteID", asignacion.getPaqueteId());
+        snapshot.put("necesidadID", asignacion.getNecesidadId());
+        snapshot.put("donacionID", paquete.getDonacionId());
+        snapshot.put("productoID", paquete.getProducto());
+        snapshot.put("cantidadAsignada", asignacion.getCantidadAsignada());
+        snapshot.put("fecha", asignacion.getFecha());
+        snapshot.put("estado", asignacion.getEstado() == null ? null : asignacion.getEstado().name());
+        snapshot.put("origen", asignacion.getOrigen() == null ? null : asignacion.getOrigen().name());
+        snapshot.put("historial", asignacion.getHistorial().stream()
+            .map(cambio -> Map.of("estado", cambio.getEstado().name(), "fecha", cambio.getFecha()))
+            .toList());
+        return snapshot;
+    }
 
 }

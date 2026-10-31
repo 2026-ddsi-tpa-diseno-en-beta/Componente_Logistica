@@ -2,10 +2,12 @@ package ar.edu.utn.dds.k3003.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.*;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
 public class RabbitConfiguration {
@@ -20,6 +22,14 @@ public class RabbitConfiguration {
     @Bean
     public DirectExchange logisticaExchange() {
         return new DirectExchange(EXCHANGE, true, false);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "donatrack.read-model.publisher.enabled", havingValue = "true")
+    public TopicExchange readModelExchange(
+        @Value("${donatrack.read-model.exchange:donatrack.readmodel.exchange}") String exchange
+    ) {
+        return new TopicExchange(exchange, true, false);
     }
 
     @Bean
