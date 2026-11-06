@@ -8,32 +8,40 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDT
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.QuejaDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import ar.edu.utn.dds.k3003.observability.TracePropagationInterceptor;
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.springframework.web.client.RestClient;
 import org.springframework.core.ParameterizedTypeReference;
 // Logging
-import ar.edu.utn.dds.k3003.observability.TracePropagationInterceptor;
+import org.springframework.web.client.RestClient;
 
-public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidades, ConsultaPeriodoNecesidad {
+public class FachadaDonadoresYEntidadesHttp
+    implements FachadaDonadoresYEntidades, ConsultaPeriodoNecesidad, SatisfaccionIdempotente {
   private final RestClient restClient;
 
   @Override
   public java.time.LocalDate inicioPeriodo(String necesidadId) {
-    java.util.Map<String, Object> body = restClient.get().uri("/necesidades/{id}/periodo", necesidadId)
-        .retrieve().body(new ParameterizedTypeReference<java.util.Map<String, Object>>() {});
-    return body == null || body.get("inicio") == null ? null : java.time.LocalDate.parse(body.get("inicio").toString());
+    java.util.Map<String, Object> body =
+        restClient
+            .get()
+            .uri("/necesidades/{id}/periodo", necesidadId)
+            .retrieve()
+            .body(new ParameterizedTypeReference<java.util.Map<String, Object>>() {});
+    return body == null || body.get("inicio") == null
+        ? null
+        : java.time.LocalDate.parse(body.get("inicio").toString());
   }
 
   public FachadaDonadoresYEntidadesHttp(String baseUrl) {
-    this.restClient = RestClient.builder()
-        .requestFactory(ar.edu.utn.dds.k3003.observability.HttpClients.requestFactory())
-        .baseUrl(baseUrl)
-        // Usada tanto por la API como por el worker (vía WorkerApplication) para
-        // pedir necesidades insatisfechas durante el matchmaking: con esto ese
-        // llamado también viaja con el traceId del mensaje de Rabbit que lo originó.
-        .requestInterceptor(new TracePropagationInterceptor())
-        .build();
+    this.restClient =
+        RestClient.builder()
+            .requestFactory(ar.edu.utn.dds.k3003.observability.HttpClients.requestFactory())
+            .baseUrl(baseUrl)
+            // Usada tanto por la API como por el worker (vía WorkerApplication) para
+            // pedir necesidades insatisfechas durante el matchmaking: con esto ese
+            // llamado también viaja con el traceId del mensaje de Rabbit que lo originó.
+            .requestInterceptor(new TracePropagationInterceptor())
+            .build();
   }
 
   @Override
@@ -90,11 +98,14 @@ public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidade
 
   @Override
   public List<NecesidadMaterialDTO> obtenerNecesidadesInsatisfechasDe(String productoSolicitadoID) {
-    return restClient.get()
-        .uri(uriBuilder -> uriBuilder
-            .path("/necesidades")
-            .queryParam("productoSolicitadoID", productoSolicitadoID)
-            .build())
+    return restClient
+        .get()
+        .uri(
+            uriBuilder ->
+                uriBuilder
+                    .path("/necesidades")
+                    .queryParam("productoSolicitadoID", productoSolicitadoID)
+                    .build())
         .retrieve()
         .body(new ParameterizedTypeReference<List<NecesidadMaterialDTO>>() {});
   }
@@ -102,15 +113,23 @@ public class FachadaDonadoresYEntidadesHttp implements FachadaDonadoresYEntidade
   @Override
   public NecesidadMaterialDTO satisfacerNecesidad(String necesidadID, Integer cantidad)
       throws NoSuchElementException {
-    restClient.post()
-        .uri(uriBuilder -> uriBuilder
-            .path("/necesidades/{id}/satisfaccion")
-            .queryParam("cantidadASatisfacer", cantidad)
-            .build(necesidadID))
-        .retrieve()
-        .body(String.class);
-
+    satisfacerEntrega(necesidadID, cantidad, null);
     return null;
+  }
+
+  @Override
+  public void satisfacerEntrega(String necesidadID, Integer cantidad, String entregaID) {
+    var request =
+        restClient
+            .post()
+            .uri(
+                uriBuilder ->
+                    uriBuilder
+                        .path("/necesidades/{id}/satisfaccion")
+                        .queryParam("cantidadASatisfacer", cantidad)
+                        .build(necesidadID));
+    if (entregaID != null) request.header("Idempotency-Key", entregaID);
+    request.retrieve().body(String.class);
   }
 
   @Override

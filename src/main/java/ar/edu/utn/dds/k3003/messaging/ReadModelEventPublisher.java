@@ -1,88 +1,56 @@
 package ar.edu.utn.dds.k3003.messaging;
 
+import ar.edu.utn.dds.k3003.persistence.entity.ReadModelOutbox;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.AmqpException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.annotation.Transactional;
 
-/** Publica snapshots de dominio después del commit de la transacción local. */
+/** Transactional outbox: domain writes and pending snapshots commit together. */
 @Component
+@Profile("!worker")
 @ConditionalOnProperty(name = "donatrack.read-model.publisher.enabled", havingValue = "true")
 public class ReadModelEventPublisher {
-
-  private static final Logger log = LoggerFactory.getLogger(ReadModelEventPublisher.class);
-
-  private final RabbitTemplate rabbitTemplate;
-  private final boolean enabled;
+  private final EntityManager em;
+  private final ObjectMapper mapper;
   private final String source;
-  private final String exchange;
-  private final String routingKey;
 
   public ReadModelEventPublisher(
-      RabbitTemplate rabbitTemplate,
-      @Value("${donatrack.read-model.publisher.enabled:false}") boolean enabled,
-      @Value("${spring.application.name:donatrack}") String source,
-      @Value("${donatrack.read-model.exchange:donatrack.readmodel.exchange}") String exchange,
-      @Value("${donatrack.read-model.routing-key:readmodel.changed}") String routingKey) {
-    this.rabbitTemplate = rabbitTemplate;
-    this.enabled = enabled;
+      EntityManager em,
+      ObjectMapper mapper,
+      @Value("${spring.application.name:Componente_Logistica}") String source) {
+    this.em = em;
+    this.mapper = mapper;
     this.source = source;
-    this.exchange = exchange;
-    this.routingKey = routingKey;
   }
 
-  public void publicar(
-      String resourceType, String resourceId, String operation, Map<String, Object> payload) {
-    if (!enabled) {
-      return;
-    }
-    if (resourceType == null || resourceType.isBlank()
-        || resourceId == null || resourceId.isBlank()
-        || operation == null || operation.isBlank()) {
-      throw new IllegalArgumentException("Datos incompletos para publicar un evento del modelo de lectura");
-    }
-
-    Map<String, Object> event = new LinkedHashMap<>();
-    event.put("eventId", UUID.randomUUID().toString());
-    event.put("source", source);
-    event.put("resourceType", resourceType);
-    event.put("resourceId", resourceId);
-    event.put("operation", operation.toUpperCase());
-    event.put("occurredAt", Instant.now().toString());
-    event.put("payload", payload == null ? Map.of() : new LinkedHashMap<>(payload));
-
-    Runnable send = () -> enviar(event);
-    if (TransactionSynchronizationManager.isActualTransactionActive()
-        && TransactionSynchronizationManager.isSynchronizationActive()) {
-      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-        @Override
-        public void afterCommit() {
-          send.run();
-        }
-      });
-    } else {
-      send.run();
-    }
-  }
-
-  private void enviar(Map<String, Object> event) {
+  @Transactional
+  public void publicar(String type, String id, String operation, Map<String, Object> payload) {
+    if (type == null || id == null || id.isBlank())
+      throw new IllegalArgumentException("Recurso requerido");
     try {
-      rabbitTemplate.convertAndSend(exchange, routingKey, event);
-      log.info("readmodel.event.published eventId={} resourceType={} resourceId={} operation={}",
-          event.get("eventId"), event.get("resourceType"), event.get("resourceId"), event.get("operation"));
-    } catch (AmqpException exception) {
-      // El fallo queda visible en logs; no se devuelve un error HTTP engañoso después del commit.
-      log.error("readmodel.event.publish_failed eventId={} resourceType={} resourceId={}",
-          event.get("eventId"), event.get("resourceType"), event.get("resourceId"), exception);
+      Map<String, Object> event = new LinkedHashMap<>();
+      String eventId = UUID.randomUUID().toString();
+      event.put("eventId", eventId);
+      event.put("schemaVersion", 1);
+      event.put("source", source);
+      event.put("resourceType", type);
+      event.put("resourceId", id);
+      event.put("operation", operation);
+      event.put("occurredAt", Instant.now().toString());
+      event.put("payload", payload);
+      ReadModelOutbox row = new ReadModelOutbox(eventId, mapper.writeValueAsString(event));
+      em.persist(row);
+      em.flush();
+      event.put("version", row.id);
+      row.content = mapper.writeValueAsString(event);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+      throw new IllegalArgumentException("Snapshot no serializable", ex);
     }
   }
 }
