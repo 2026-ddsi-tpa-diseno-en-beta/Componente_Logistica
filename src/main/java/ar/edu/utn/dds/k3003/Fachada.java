@@ -826,6 +826,46 @@ public class Fachada implements FachadaLogistica {
         }
     }
 
+    @Transactional
+    public int recuperarMatchmakingPendiente() {
+        int recuperados = 0;
+
+        for (Deposito deposito : depositoRepo.findAll()) {
+            if (deposito.getTipoAlgoritmo() == null) {
+                boolean tienePendientes = deposito.getStockActual().stream()
+                    .anyMatch(paquete -> paquete.getEstadoPaquete() == EstadoPaquete.PENDIENTE);
+                if (tienePendientes) {
+                    log.warn(
+                        "matchmaking.recuperacion_omitida deposito={} motivo=algoritmo_no_configurado",
+                        deposito.getId()
+                    );
+                }
+                continue;
+            }
+
+            for (Paquete paquete : deposito.getStockActual()) {
+                if (paquete.getEstadoPaquete() != EstadoPaquete.PENDIENTE) {
+                    continue;
+                }
+
+                DonacionPendienteMessage mensaje = new DonacionPendienteMessage(
+                    deposito.getId(),
+                    paquete.getId(),
+                    paquete.getDonacionId(),
+                    paquete.getProducto(),
+                    paquete.getCantidad(),
+                    deposito.getTipoAlgoritmo(),
+                    TraceContext.currentTraceId()
+                );
+                eventPublisher.publishEvent(new DonacionRegistradaEvent(mensaje));
+                recuperados++;
+            }
+        }
+
+        log.info("matchmaking.recuperacion_finalizada paquetes_reencolados={}", recuperados);
+        return recuperados;
+    }
+
     private void publicarEvento(
         String tipo, String id, String operacion, Map<String, Object> payload
     ) {
