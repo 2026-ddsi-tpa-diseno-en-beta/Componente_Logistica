@@ -66,6 +66,10 @@ public class LogisticaService {
     return fachada.asignarDesdeStock(necesidadId, productoId, cantidad);
   }
 
+  public List<AsignacionDTO> asignarDesdeStock(String necesidadId, String productoId, Integer cantidad, String solicitudId) {
+    return fachada.asignarDesdeStock(necesidadId, productoId, cantidad, solicitudId);
+  }
+
   public AsignacionDTO registrarResultadoMatchmaking(ResultadoMatchmakingRequest request) {
     return fachada.registrarResultadoMatchmaking(request);
   }

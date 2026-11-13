@@ -12,6 +12,9 @@ class EntregaLoteTest {
   @BeforeEach void setup() {
     facade=new Fachada();donors=mock(FachadaDonadoresYEntidades.class);donations=mock(FachadaDonaciones.class);
     facade.setFachadaDonadoresYEntidades(donors);facade.setFachadaDonaciones(donations);
+    when(donors.obtenerNecesidadesInsatisfechasDe(any())).thenReturn(List.of(
+        new ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO("n","e",1,"n",100,"p",ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum.EXTRAORDINARIA),
+        new ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO("otra","e",1,"n",100,"p",ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
     depot=facade.agregarDeposito(new DepositoDTO(null,null,"Depósito","Dirección",100,null)).id();
     facade.setAlgoritmoMM(depot,TipoAlgoritmoEnum.SUB_ATENDIDOS);
   }
@@ -31,10 +34,12 @@ class EntregaLoteTest {
   }
   @Test void loteNoPuedeMezclarNecesidades() {
     String a=pack("a",4,"n"),b=pack("b",6,"otra");
+    clearInvocations(donors);
     assertThrows(ConflictException.class,()->facade.reportarEntregaLote(List.of(a,b)));verifyNoInteractions(donors);
   }
   @Test void paqueteRepetidoNoSumaDosVeces() {
     String a=pack("a",4,"n");
+    clearInvocations(donors);
     assertThrows(BusinessRuleException.class,()->facade.reportarEntregaLote(List.of(a,a)));verifyNoInteractions(donors);
   }
   @Test void reentregaNoVuelveASatisfacerLaNecesidad() {

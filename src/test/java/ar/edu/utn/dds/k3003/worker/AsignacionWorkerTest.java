@@ -55,6 +55,9 @@ class AsignacionWorkerTest {
                     "producto1",
                     TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
     when(logistica.cantidadAsignada("necesidad1")).thenReturn(0);
+    when(logistica.registrarResultado(any())).thenReturn(new ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO(
+        "a", "paquete1", "necesidad1", java.time.LocalDateTime.now(),
+        ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsignacionEnum.ASIGNADA, 10, null));
 
     AsignacionWorker worker =
         new AsignacionWorker(donadores, matchmaking, logistica, metrics, instanceInfo);
@@ -70,5 +73,36 @@ class AsignacionWorkerTest {
     verify(metrics).mensajeProcesado();
     verify(metrics).intento();
     verify(metrics).resultado(true, true);
+  }
+
+  @Test
+  void staleProposalAcknowledgedAsStockUsesTheConfirmedOutcome() {
+    var donors = mock(FachadaDonadoresYEntidadesHttp.class);
+    when(donors.obtenerNecesidadesInsatisfechasDe("p")).thenReturn(List.of(new NecesidadMaterialDTO(
+        "stale", "e", 1, "n", 10, "p", TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
+    var client = mock(LogisticaInternalClient.class);
+    when(client.registrarResultado(any())).thenReturn(null);
+    var metrics = mock(WorkerMetrics.class);
+    new AsignacionWorker(donors, new MatchmakingService(), client, metrics, new InstanceInfo("w", "worker"))
+        .procesar(new DonacionPendienteMessage("d", "packet", "donation", "p", 10,
+            ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum.SUB_ATENDIDOS));
+    verify(metrics).resultado(false, true); verify(metrics).callbackExitoso(); verify(metrics).mensajeProcesado();
+    verify(metrics, never()).error();
+  }
+
+  @Test
+  void apiCanFindANewNeedAfterTheWorkerSawNoCandidates() {
+    var donors = mock(FachadaDonadoresYEntidadesHttp.class);
+    when(donors.obtenerNecesidadesInsatisfechasDe("p")).thenReturn(List.of());
+    var client = mock(LogisticaInternalClient.class);
+    when(client.registrarResultado(any())).thenReturn(new ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO(
+        "a", "packet", "new-need", java.time.LocalDateTime.now(),
+        ar.edu.utn.dds.k3003.catedra.dtos.logistica.EstadoAsignacionEnum.ASIGNADA, 3, null));
+    var metrics = mock(WorkerMetrics.class);
+    new AsignacionWorker(donors, new MatchmakingService(), client, metrics, new InstanceInfo("w", "worker"))
+        .procesar(new DonacionPendienteMessage("d", "packet", "donation", "p", 5,
+            ar.edu.utn.dds.k3003.catedra.dtos.logistica.TipoAlgoritmoEnum.SUB_ATENDIDOS));
+    verify(client).registrarResultado(argThat(request -> request.necesidadId() == null));
+    verify(metrics).resultado(true, true); verify(metrics).mensajeProcesado(); verify(metrics, never()).error();
   }
 }

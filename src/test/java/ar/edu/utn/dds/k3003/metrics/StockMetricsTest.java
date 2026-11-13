@@ -21,7 +21,7 @@ class StockMetricsTest {
     var empty = deposits.save(new Deposito("vacío", "dirección", 100, List.of()));
     assignments.save(new Asignacion("packet", "need", LocalDateTime.now().minusHours(25),
         EstadoAsignacionEnum.ASIGNADA, 10, OrigenAsignacion.MATCHMAKING));
-    var fachada = new Fachada(deposits, assignments, new LogisticaDataMapper(), new MatchmakingService(), event -> {});
+    var fachada = new Fachada(deposits, assignments, new LogisticaDataMapper(), new MatchmakingService());
     var registry = new SimpleMeterRegistry();
     new StockMetrics(registry, fachada);
     assertEquals(10, registry.get("logistica.asignaciones.unidades.reservadas").gauge().value());

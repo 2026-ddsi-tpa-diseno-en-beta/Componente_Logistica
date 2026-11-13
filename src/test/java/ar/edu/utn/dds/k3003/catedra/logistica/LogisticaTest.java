@@ -113,6 +113,9 @@ public class LogisticaTest {
 
   @Test
   void testReportarEntrega() {
+    Mockito.when(fachadaDonadoresYEntidades.obtenerNecesidadesInsatisfechasDe(Mockito.any()))
+        .thenReturn(List.of(new NecesidadMaterialDTO("necesidad1", "entidad1", 5, "descripcion1", 10,
+            "producto1", TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
     DepositoDTO deposito =
         instancia.agregarDeposito(
             new DepositoDTO(null, null, "deposito1", "direccion1", 1000, null));

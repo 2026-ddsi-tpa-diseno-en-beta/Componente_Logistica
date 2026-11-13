@@ -189,13 +189,14 @@ public class LogisticaController {
   )
   @PostMapping("/stock/asignaciones")
   public ResponseEntity<List<AsignacionDTO>> asignarDesdeStock(
-      @Valid @RequestBody SolicitudAsignacionStockRequest request
+      @Valid @RequestBody SolicitudAsignacionStockRequest request,
+      @RequestHeader(value = "Idempotency-Key", required = false) String solicitudId
   ) {
       List<AsignacionDTO> asignaciones =
           service.asignarDesdeStock(
               request.necesidadId(),
               request.productoId(),
-              request.cantidad()
+              request.cantidad(), solicitudId
           );
 
       if (!asignaciones.isEmpty())

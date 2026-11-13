@@ -34,6 +34,8 @@ class ApiPersistenciaTest {
   static final List<String> attemptedKeys = new java.util.concurrent.CopyOnWriteArrayList<>();
   static final java.util.concurrent.atomic.AtomicBoolean failAcceptance =
       new java.util.concurrent.atomic.AtomicBoolean();
+  static final Map<String, Map<String, Object>> needs = new java.util.concurrent.ConcurrentHashMap<>();
+  static final Map<String, AtomicInteger> receivedByNeed = new java.util.concurrent.ConcurrentHashMap<>();
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
   @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -74,8 +76,23 @@ class ApiPersistenciaTest {
                 satisfactions.incrementAndGet();
                 receivedUnits.addAndGet(
                     Integer.parseInt(exchange.getRequestURI().getQuery().split("=")[1]));
+                String need = path.substring("/necesidades/".length(), path.length() - "/satisfaccion".length());
+                receivedByNeed.computeIfAbsent(need, ignored -> new AtomicInteger()).addAndGet(
+                    Integer.parseInt(exchange.getRequestURI().getQuery().split("=")[1]));
               }
               output = "{}";
+            } else if (path.startsWith("/necesidades/")) {
+              String id = path.substring("/necesidades/".length());
+              if (id.startsWith("missing")) {
+                exchange.sendResponseHeaders(404, -1); exchange.close(); return;
+              }
+              var value = new HashMap<>(needs.getOrDefault(id, Map.of("id", id, "entidadID", "e",
+                  "nivelDeUrgencia", 1, "descripcion", "necesidad", "cantidadObjetivo", 1000,
+                  "productoSolicitadoID", "p", "tipo", "EXTRAORDINARIA")));
+              value.put("cantidadAsignada", receivedByNeed.getOrDefault(id, new AtomicInteger()).get());
+              output = new ObjectMapper().writeValueAsString(value);
+            } else if (path.equals("/necesidades")) {
+              output = new ObjectMapper().writeValueAsString(needs.values());
             } else if (path.startsWith("/donaciones/"))
               output = "{\"id\":\"d\",\"estado\":\"ACEPTADA\"}";
             else output = "[]";
@@ -108,6 +125,8 @@ class ApiPersistenciaTest {
     deliveryKeys.clear();
     attemptedKeys.clear();
     failAcceptance.set(false);
+    needs.clear();
+    receivedByNeed.clear();
   }
 
   @AfterAll
@@ -163,6 +182,169 @@ class ApiPersistenciaTest {
     return body;
   }
 
+  void need(String id, int quantity, String type) {
+    needs.put(id, Map.of("id", id, "entidadID", "e", "nivelDeUrgencia", 1,
+        "descripcion", "necesidad", "cantidadObjetivo", quantity, "productoSolicitadoID", "p", "tipo", type));
+  }
+
+  int assigned(String need) throws Exception {
+    int total = 0;
+    for (var assignment : call("GET", "/asignaciones", null, 200))
+      if (need.equals(assignment.path("necesidadID").asText())) total += assignment.path("cantidadAsignada").asInt();
+    return total;
+  }
+
+  void concurrently(java.util.concurrent.Callable<?> first, java.util.concurrent.Callable<?> second) throws Exception {
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var ready = new java.util.concurrent.CountDownLatch(2);
+      var go = new java.util.concurrent.CountDownLatch(1);
+      var a = pool.submit(() -> { ready.countDown(); go.await(); return first.call(); });
+      var b = pool.submit(() -> { ready.countDown(); go.await(); return second.call(); });
+      assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)); go.countDown();
+      a.get(30, java.util.concurrent.TimeUnit.SECONDS); b.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    }
+  }
+
+  JsonNode callback(String depot, String packet, String need, int assigned, int leftover) throws Exception {
+    var response = mvc.perform(post("/internal/matchmaking/resultados").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(result(depot, packet, need, assigned, leftover)))).andReturn().getResponse();
+    assertTrue(response.getStatus() == 200 || response.getStatus() == 204,
+        response.getStatus() + ": " + response.getContentAsString());
+    return response.getContentAsString().isBlank() ? json.nullNode() : json.readTree(response.getContentAsString());
+  }
+
+  JsonNode stock(String need, int quantity, String key, int status) throws Exception {
+    var request = post("/stock/asignaciones").contentType(MediaType.APPLICATION_JSON)
+        .content(json.writeValueAsString(Map.of("necesidadId", need, "productoId", "p", "cantidad", quantity)));
+    if (key != null) request.header("Idempotency-Key", key);
+    var response = mvc.perform(request).andReturn().getResponse();
+    assertEquals(status, response.getStatus(), response.getContentAsString());
+    return response.getContentAsString().isBlank() ? json.nullNode() : json.readTree(response.getContentAsString());
+  }
+
+  @Test
+  void concurrentWorkersAcrossDepositsCannotOverReserveARecurringNeed() throws Exception {
+    need("rec", 10, "RECURRENTE");
+    String d1 = depot(), d2 = depot(), p1 = pack(d1, "concurrent-rec-a", 10), p2 = pack(d2, "concurrent-rec-b", 10);
+    concurrently(() -> callback(d1, p1, "rec", 10, 0), () -> callback(d2, p2, "rec", 10, 0));
+    assertEquals(10, assigned("rec"));
+    assertEquals(10, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void concurrentExtraordinaryCallbacksRevalidatePartialBalance() throws Exception {
+    need("extra", 10, "EXTRAORDINARIA");
+    String d1 = depot(), d2 = depot(), p1 = pack(d1, "concurrent-extra-a", 7), p2 = pack(d2, "concurrent-extra-b", 7);
+    concurrently(() -> callback(d1, p1, "extra", 7, 0), () -> callback(d2, p2, "extra", 7, 0));
+    assertEquals(10, assigned("extra"));
+    assertEquals(4, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void concurrentWorkersRetryAnotherEligibleNeedInsteadOfLosingTheOpportunity() throws Exception {
+    need("first-choice", 5, "EXTRAORDINARIA"); need("alternative", 5, "EXTRAORDINARIA");
+    String d1 = depot(), d2 = depot(), p1 = pack(d1, "two-needs-a", 5), p2 = pack(d2, "two-needs-b", 5);
+    concurrently(() -> callback(d1, p1, "first-choice", 5, 0), () -> callback(d2, p2, "first-choice", 5, 0));
+    assertEquals(5, assigned("first-choice")); assertEquals(5, assigned("alternative"));
+    assertEquals(0, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void staleWorkerCanSelectAnotherNeedAndDiscoverANewNeedAfterNegativeDecision() throws Exception {
+    need("first", 5, "EXTRAORDINARIA");
+    String d1 = depot(), d2 = depot(), p1 = pack(d1, "stale-first", 5), p2 = pack(d2, "stale-second", 5);
+    callback(d1, p1, "first", 5, 0);
+    need("second", 5, "EXTRAORDINARIA");
+    assertEquals("second", callback(d2, p2, "first", 5, 0).path("necesidadID").asText());
+    assertEquals(5, assigned("first")); assertEquals(5, assigned("second"));
+    needs.clear();
+    String p3 = pack(d1, "negative-decision", 5);
+    need("new", 3, "EXTRAORDINARIA");
+    assertEquals("new", callback(d1, p3, null, 0, 5).path("necesidadID").asText());
+    assertEquals(2, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void stockReservationsAndWorkerCallbacksUseTheSameNeedLock() throws Exception {
+    String d1 = depot(), d2 = depot(), stored = pack(d1, "mixed-stock", 10), pending = pack(d2, "mixed-pending", 10);
+    callback(d1, stored, null, 0, 10);
+    need("mixed", 10, "RECURRENTE");
+    concurrently(() -> callback(d2, pending, "mixed", 10, 0), () -> {
+      var response = mvc.perform(post("/stock/asignaciones").contentType(MediaType.APPLICATION_JSON)
+          .content(json.writeValueAsString(Map.of("necesidadId", "mixed", "productoId", "p", "cantidad", 10))))
+          .andReturn().getResponse();
+      assertTrue(response.getStatus() == 200 || response.getStatus() == 204, response.getContentAsString());
+      return null;
+    });
+    assertEquals(10, assigned("mixed"));
+    assertEquals(10, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void completedDeliveriesAreCountedOnceWhenAStaleCallbackArrives() throws Exception {
+    need("delivered", 10, "EXTRAORDINARIA");
+    String d = depot(), a = pack(d, "already-delivered", 7), b = pack(d, "late-worker", 10);
+    callback(d, a, "delivered", 7, 0); call("POST", "/entregas", Map.of("id", a), 200);
+    assertEquals(7, receivedByNeed.get("delivered").get());
+    assertEquals(3, callback(d, b, "delivered", 10, 0).path("cantidadAsignada").asInt());
+    assertEquals(10, assigned("delivered"));
+    assertEquals(7, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void stockValidatesCommittedNeedProductAndWholeRecurringBalance() throws Exception {
+    String d = depot(), p = pack(d, "validate-stock", 15); callback(d, p, null, 0, 15);
+    stock("missing-need", 10, null, 404);
+    need("whole", 10, "RECURRENTE");
+    stock("whole", 5, null, 204);
+    assertEquals(0, assigned("whole"));
+    var original = needs.get("whole"); var different = new HashMap<>(original); different.put("productoSolicitadoID", "other");
+    needs.put("whole", different); stock("whole", 10, null, 400); needs.put("whole", original);
+    stock("whole", 10, null, 200); stock("whole", 10, null, 204);
+    assertEquals(10, assigned("whole"));
+    assertEquals(5, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+  }
+
+  @Test
+  void keyedEmptyStockAttemptDoesNotBlockLaterUnkeyedReservation() throws Exception {
+    String d = depot(), a = pack(d, "empty-key-a", 6); callback(d, a, null, 0, 6);
+    need("empty-key", 10, "RECURRENTE");
+    stock("empty-key", 10, "initial-attempt", 204);
+    String b = pack(d, "empty-key-b", 4); callback(d, b, "empty-key", 0, 4);
+    stock("empty-key", 10, "initial-attempt", 204);
+    stock("empty-key", 10, null, 200);
+    assertEquals(10, assigned("empty-key"));
+  }
+
+  @Test
+  void ingressReceiptSurvivesSplittingDeliveryAndConflictingReplays() throws Exception {
+    String d = depot(), other = depot(), p = pack(d, "receipt-split", 10); callback(d, p, null, 0, 10);
+    need("split", 3, "EXTRAORDINARIA");
+    var assignments = stock("split", 3, "split-request", 200);
+    String packet = assignments.get(0).path("paqueteID").asText();
+    call("POST", "/entregas", Map.of("id", packet), 200);
+    assertEquals(assignments.get(0).path("id").asText(), stock("split", 3, "split-request", 200).get(0).path("id").asText());
+    stock("split", 2, "split-request", 409);
+    pack(d, "receipt-split", 10);
+    assertEquals(2, call("GET", "/depositos/" + d, null, 200).path("stockActual").size());
+    assertEquals(7, call("GET", "/stock/p", null, 200).path("cantidadDisponible").asInt());
+    call("POST", "/depositos/" + d + "/donacion", Map.of("donacionID", "receipt-split", "productoID", "p", "cantidad", 11), 409);
+    call("POST", "/depositos/" + other + "/donacion", Map.of("donacionID", "receipt-split", "productoID", "p", "cantidad", 10), 409);
+    assertEquals(1L, jdbc.queryForObject("select count(*) from logistica_recepciones where donacion_id='receipt-split'", Long.class));
+    // A deployment with old packages and no receipts can reconcile legitimate fragments.
+    jdbc.update("delete from logistica_recepciones where donacion_id='receipt-split'");
+    pack(d, "receipt-split", 10);
+    assertEquals(2, call("GET", "/depositos/" + d, null, 200).path("stockActual").size());
+  }
+
+  @Test
+  void concurrentIngressRetriesCreateOneReceiptAndOnePackage() throws Exception {
+    String d = depot();
+    concurrently(() -> pack(d, "simultaneous-ingress", 10), () -> pack(d, "simultaneous-ingress", 10));
+    assertEquals(1, call("GET", "/depositos/" + d, null, 200).path("stockActual").size());
+    assertEquals(1L, jdbc.queryForObject("select count(*) from logistica_recepciones where donacion_id='simultaneous-ingress'", Long.class));
+  }
+
   @Test
   void conservaStockAsignacionesHistorialYEntregaSinDuplicados() throws Exception {
     String d = depot(), p = pack(d, "donacion1", 10);
@@ -184,6 +366,37 @@ class ApiPersistenciaTest {
     call("POST", "/internal/matchmaking/resultados", callback, 200);
     assertEquals(1, call("GET", "/asignaciones", null, 200).size());
     assertEquals(1, satisfactions.get());
+  }
+
+  @Test
+  void crearDepositoRechazaInventarioInyectadoYAlgoritmoInicial() throws Exception {
+    for (int cantidad : List.of(-100, 100)) {
+      call(
+          "POST",
+          "/depositos",
+          Map.of(
+              "nombre", "Depósito inválido",
+              "direccion", "Medrano",
+              "capacidadMaxima", 1,
+              "stockActual", List.of(Map.of(
+                  "donacionID", "donacion-no-registrada", "producto", "p", "cantidad", cantidad))),
+          400);
+    }
+    call(
+        "POST", "/depositos",
+        Map.of("nombre", "Depósito", "direccion", "Medrano", "capacidadMaxima", 100,
+            "algoritmo", "SUB_ATENDIDOS"),
+        400);
+    assertEquals(0, call("GET", "/depositos", null, 200).size());
+    assertEquals(0, call("GET", "/admin/db/status", null, 200).path("paquetes").asInt());
+
+    var creado = call(
+        "POST", "/depositos",
+        Map.of("nombre", "Depósito", "direccion", "Medrano", "capacidadMaxima", 100,
+            "stockActual", List.of()),
+        200);
+    assertTrue(creado.path("algoritmo").isNull());
+    assertEquals(0, creado.path("stockActual").size());
   }
 
   @Test
@@ -314,7 +527,7 @@ class ApiPersistenciaTest {
         "POST",
         "/stock/asignaciones",
         Map.of("necesidadId", "n", "productoId", "otro", "cantidad", 1),
-        204);
+        400);
     call(
         "POST",
         "/stock/asignaciones",
