@@ -16,8 +16,29 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.RestClient;
 
 public class FachadaDonadoresYEntidadesHttp
-    implements FachadaDonadoresYEntidades, ConsultaPeriodoNecesidad, SatisfaccionIdempotente {
+    implements FachadaDonadoresYEntidades, ConsultaPeriodoNecesidad, SatisfaccionIdempotente, ConsultaNecesidadVigente {
   private final RestClient restClient;
+
+  @Override
+  public NecesidadVigente consultarNecesidad(String id) {
+    try {
+      com.fasterxml.jackson.databind.JsonNode body = restClient.get().uri("/necesidades/{id}", id)
+          .retrieve().body(com.fasterxml.jackson.databind.JsonNode.class);
+      if (body == null || !body.hasNonNull("id"))
+        throw new IllegalStateException("La integración no devolvió una necesidad válida");
+      var necesidad = new NecesidadMaterialDTO(body.path("id").asText(), body.path("entidadID").asText(),
+          body.path("nivelDeUrgencia").asInt(), body.path("descripcion").asText(),
+          body.path("cantidadObjetivo").asInt(), body.path("productoSolicitadoID").asText(),
+          ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum.valueOf(body.path("tipo").asText()));
+      // Current DyE includes the period in the same snapshot. Keep the old endpoint as compatibility only.
+      java.time.LocalDate inicio = body.has("inicioPeriodo")
+          ? body.hasNonNull("inicioPeriodo") ? java.time.LocalDate.parse(body.path("inicioPeriodo").asText()) : null
+          : inicioPeriodo(id);
+      return new NecesidadVigente(necesidad, body.path("cantidadAsignada").asInt(0), inicio);
+    } catch (org.springframework.web.client.HttpClientErrorException.NotFound ex) {
+      throw new ar.edu.utn.dds.k3003.exceptions.ResourceNotFoundException("Necesidad no encontrada");
+    }
+  }
 
   @Override
   public java.time.LocalDate inicioPeriodo(String necesidadId) {

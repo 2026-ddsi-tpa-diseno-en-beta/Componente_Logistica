@@ -40,12 +40,18 @@ public class LogisticaInternalClient {
         return cantidad == null ? 0 : cantidad;
     }
 
-    public void registrarResultado(ResultadoMatchmakingRequest request) {
-        client.post()
+    public ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO registrarResultado(ResultadoMatchmakingRequest request) {
+        var response = client.post()
             .uri("/internal/matchmaking/resultados")
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)
             .retrieve()
-            .toBodilessEntity();
+            .toEntity(ar.edu.utn.dds.k3003.catedra.dtos.logistica.AsignacionDTO.class);
+        if (response.getStatusCode().value() == 204) return null;
+        var assignment = response.getBody();
+        if (assignment == null || assignment.id() == null || assignment.necesidadID() == null
+            || assignment.cantidadAsignada() == null || assignment.cantidadAsignada() <= 0)
+            throw new IllegalStateException("El callback devolvió una asignación inválida");
+        return assignment;
     }
 }

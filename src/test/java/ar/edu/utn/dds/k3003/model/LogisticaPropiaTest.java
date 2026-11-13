@@ -91,6 +91,7 @@ class LogisticaPropiaTest {
 
   @Test
   void registrarResultadoMatchmakingEsIdempotente() {
+    confirmarNecesidad();
     DepositoDTO deposito = crearDeposito();
     DepositoDTO conPaquete =
         fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 10);
@@ -109,6 +110,7 @@ class LogisticaPropiaTest {
 
   @Test
   void reportarEntregaUsaDonacionPersistidaYCompletaAsignacion() {
+    confirmarNecesidad();
     DepositoDTO deposito = crearDeposito();
     DepositoDTO conPaquete =
         fachada.gestionarDonacion(deposito.id(), "donacion1", "producto1", 10);
@@ -160,5 +162,11 @@ class LogisticaPropiaTest {
             new DepositoDTO(null, null, "Deposito A", "Direccion A", 100, null));
     fachada.setAlgoritmoMM(deposito.id(), TipoAlgoritmoEnum.SUB_ATENDIDOS);
     return deposito;
+  }
+
+  private void confirmarNecesidad() {
+    when(fachadaDonadoresYEntidades.obtenerNecesidadesInsatisfechasDe(any()))
+        .thenReturn(List.of(new NecesidadMaterialDTO("necesidad1", "entidad1", 5, "desc", 20,
+            "producto1", TipoNecesidadMaterialEnum.EXTRAORDINARIA)));
   }
 }

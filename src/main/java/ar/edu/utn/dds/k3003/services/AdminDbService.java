@@ -60,6 +60,9 @@ public class AdminDbService {
     }
     // Pending worker tasks must not survive the packages removed by this reset.
     entityManager.createQuery("delete from TrabajoMatchmaking").executeUpdate();
+    entityManager.createNativeQuery("delete from logistica_solicitud_asignaciones").executeUpdate();
+    entityManager.createQuery("delete from SolicitudStockProcesada").executeUpdate();
+    entityManager.createQuery("delete from RecepcionDonacion").executeUpdate();
     asignacionRepository.deleteAll();
     depositoRepository.deleteAll();
   }

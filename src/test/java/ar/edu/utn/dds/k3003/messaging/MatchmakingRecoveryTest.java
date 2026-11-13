@@ -14,6 +14,9 @@ class MatchmakingRecoveryTest {
   @Test
   void recoveryQueuesOnlyPendingPackagesWithoutDuplicatingDomainRecords() {
     var facade = new Fachada();
+    var donors = mock(ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades.class);
+    when(donors.obtenerNecesidadesInsatisfechasDe(any())).thenReturn(java.util.List.of());
+    facade.setFachadaDonadoresYEntidades(donors);
     var outbox = mock(MatchmakingOutbox.class);
     ReflectionTestUtils.setField(facade, "matchmakingOutbox", outbox);
     var d =

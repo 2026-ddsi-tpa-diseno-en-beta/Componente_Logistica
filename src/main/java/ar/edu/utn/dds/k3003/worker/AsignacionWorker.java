@@ -103,7 +103,7 @@ public class AsignacionWorker {
                 .map(n -> n.id())
                 .orElse(null);
 
-            logisticaClient.registrarResultado(
+            var confirmada = logisticaClient.registrarResultado(
                 new ResultadoMatchmakingRequest(
                     message.depositoId(),
                     message.paqueteId(),
@@ -115,17 +115,19 @@ public class AsignacionWorker {
 
             metrics.callbackExitoso();
             metrics.mensajeProcesado();
-            metrics.resultado(necesidadId != null, !necesidadesSeguras.isEmpty());
-            MDC.put("event", "matchmaking.finalizado"); MDC.put("outcome", necesidadId == null ? "sin_asignacion" : "asignado");
-            if (necesidadId != null) MDC.put("necesidadId", necesidadId);
-            MDC.put("quantity", String.valueOf(resultado.cantidadAsignada()));
+            String necesidadConfirmada = confirmada == null ? null : confirmada.necesidadID();
+            int cantidadConfirmada = confirmada == null ? 0 : confirmada.cantidadAsignada();
+            metrics.resultado(confirmada != null, !necesidadesSeguras.isEmpty() || confirmada != null);
+            MDC.put("event", "matchmaking.finalizado"); MDC.put("outcome", confirmada == null ? "sin_asignacion" : "asignado");
+            if (necesidadConfirmada != null) MDC.put("necesidadId", necesidadConfirmada);
+            MDC.put("quantity", String.valueOf(cantidadConfirmada));
             MDC.put("durationMs", String.valueOf((System.nanoTime() - start) / 1_000_000));
             log.info(
                 "matchmaking.finalizado paquete={} necesidad={} asignada={} sobrante={}",
                 message.paqueteId(),
-                necesidadId,
-                resultado.cantidadAsignada(),
-                resultado.cantidadSobrante()
+                necesidadConfirmada,
+                cantidadConfirmada,
+                message.cantidad() - cantidadConfirmada
             );
         } catch (RuntimeException ex) {
             metrics.error();

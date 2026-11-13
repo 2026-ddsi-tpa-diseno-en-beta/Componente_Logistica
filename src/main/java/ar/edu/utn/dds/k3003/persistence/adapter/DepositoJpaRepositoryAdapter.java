@@ -16,6 +16,7 @@ public class DepositoJpaRepositoryAdapter implements DepositoRepository {
 
   private final DepositoSpringDataRepository jpaRepository;
   private final LogisticaDataMapper mapper;
+  @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
 
   public DepositoJpaRepositoryAdapter(DepositoSpringDataRepository jpaRepository, LogisticaDataMapper mapper) {
     this.jpaRepository = jpaRepository;
@@ -37,7 +38,11 @@ public class DepositoJpaRepositoryAdapter implements DepositoRepository {
 
   @Override
   public Optional<Deposito> findByIdForUpdate(String id) {
-    return jpaRepository.findLockedById(IdsPersistidos.numerico(id)).map(mapper::toDeposito);
+    return jpaRepository.findLockedById(IdsPersistidos.numerico(id)).map(entity -> {
+      // A previous findAll (or OSIV) can cache the aggregate before this transaction waits.
+      entityManager.refresh(entity, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+      return mapper.toDeposito(entity);
+    });
   }
 
   @Override

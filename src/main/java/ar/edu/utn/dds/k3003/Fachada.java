@@ -15,7 +15,7 @@ import ar.edu.utn.dds.k3003.controllers.requests.logistica.ResultadoMatchmakingR
 import ar.edu.utn.dds.k3003.exceptions.BusinessRuleException;
 import ar.edu.utn.dds.k3003.exceptions.ConflictException;
 import ar.edu.utn.dds.k3003.exceptions.ResourceNotFoundException;
-import ar.edu.utn.dds.k3003.messaging.DonacionRegistradaEvent;
+import ar.edu.utn.dds.k3003.messaging.MatchmakingOutbox;
 import ar.edu.utn.dds.k3003.messaging.ReadModelEventPublisher;
 import ar.edu.utn.dds.k3003.messaging.dto.DonacionPendienteMessage;
 import ar.edu.utn.dds.k3003.model.Asignacion;
@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -58,10 +57,18 @@ public class Fachada implements FachadaLogistica {
     private final AsignacionRepository asignacionRepo;
     private final LogisticaDataMapper mapper;
     private final MatchmakingService matchmakingService;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired(required = false)
     private ReadModelEventPublisher readModelEventPublisher;
+
+    @Autowired(required = false)
+    private MatchmakingOutbox matchmakingOutbox;
+
+    @Autowired(required = false)
+    private ar.edu.utn.dds.k3003.persistence.OperacionCoordinada coordinacion;
+
+    @Autowired(required = false)
+    private ar.edu.utn.dds.k3003.persistence.RegistroOperaciones registros;
 
     private FachadaDonadoresYEntidades fachadaDonadores;
     private FachadaDonaciones fachadaDonaciones;
@@ -71,8 +78,7 @@ public class Fachada implements FachadaLogistica {
             new InMemoryDepositoRepository(),
             new InMemoryAsignacionRepository(),
             new LogisticaDataMapper(),
-            new MatchmakingService(),
-            event -> {}
+            new MatchmakingService()
         );
     }
 
@@ -81,14 +87,12 @@ public class Fachada implements FachadaLogistica {
         DepositoRepository depositoRepo,
         AsignacionRepository asignacionRepo,
         LogisticaDataMapper mapper,
-        MatchmakingService matchmakingService,
-        ApplicationEventPublisher eventPublisher
+        MatchmakingService matchmakingService
     ) {
         this.depositoRepo = Objects.requireNonNull(depositoRepo);
         this.asignacionRepo = Objects.requireNonNull(asignacionRepo);
         this.mapper = Objects.requireNonNull(mapper);
         this.matchmakingService = Objects.requireNonNull(matchmakingService);
-        this.eventPublisher = Objects.requireNonNull(eventPublisher);
     }
 
     @Override
@@ -103,6 +107,13 @@ public class Fachada implements FachadaLogistica {
             || depositoDto.capacidadMaxima() == null
             || depositoDto.capacidadMaxima() <= 0) {
             throw new BusinessRuleException("Datos inválidos para el depósito");
+        }
+
+        if (depositoDto.algoritmo() != null
+            || depositoDto.stockActual() != null && !depositoDto.stockActual().isEmpty()) {
+            throw new BusinessRuleException(
+                "El depósito debe crearse sin stock y sin algoritmo; registre donaciones y configure el algoritmo después"
+            );
         }
 
         Deposito deposito = mapper.toDeposito(depositoDto);
@@ -158,7 +169,6 @@ public class Fachada implements FachadaLogistica {
     }
 
     @Override
-    @Transactional
     public DepositoDTO gestionarDonacion(
         String depositoID,
         String donacionID,
@@ -171,6 +181,36 @@ public class Fachada implements FachadaLogistica {
 
         if (cantidad == null || cantidad <= 0) {
             throw new BusinessRuleException("La cantidad donada debe ser positiva");
+        }
+
+        return enOperacion("recepcion", donacionID,
+            () -> recibirDonacion(depositoID, donacionID, productoID, cantidad));
+    }
+
+    private DepositoDTO recibirDonacion(String depositoID, String donacionID, String productoID, int cantidad) {
+        if (registros != null) {
+            var receipt = registros.recepcion(donacionID);
+            if (receipt != null) {
+                validarRecepcion(receipt, depositoID, productoID, cantidad);
+                return buscarDepositoPorID(depositoID);
+            }
+        }
+        // Reconcile pre-receipt deployments without mistaking legitimate splits for duplicate ingress.
+        var anteriores = depositoRepo.findAll().stream().filter(d -> d.getStockActual().stream()
+            .anyMatch(p -> donacionID.equals(p.getDonacionId()))).toList();
+        if (!anteriores.isEmpty()) {
+            var receipt = new ar.edu.utn.dds.k3003.persistence.entity.RecepcionDonacion();
+            receipt.donacionId = donacionID;
+            receipt.depositoId = anteriores.getFirst().getId();
+            var paquetes = anteriores.stream().flatMap(d -> d.getStockActual().stream())
+                .filter(p -> donacionID.equals(p.getDonacionId())).toList();
+            receipt.productoId = paquetes.getFirst().getProducto();
+            receipt.cantidad = paquetes.stream().mapToInt(Paquete::getCantidad).sum();
+            if (anteriores.size() != 1 || paquetes.stream().anyMatch(p -> !receipt.productoId.equals(p.getProducto())))
+                throw new ConflictException("La donación tiene una recepción histórica inconsistente");
+            validarRecepcion(receipt, depositoID, productoID, cantidad);
+            if (registros != null) registros.guardar(receipt);
+            return buscarDepositoPorID(depositoID);
         }
 
         Deposito deposito = depositoRepo.findByIdForUpdate(depositoID)
@@ -194,6 +234,13 @@ public class Fachada implements FachadaLogistica {
         deposito.almacenar(paquete);
         Deposito guardado = depositoRepo.save(deposito);
 
+        if (registros != null) {
+            var receipt = new ar.edu.utn.dds.k3003.persistence.entity.RecepcionDonacion();
+            receipt.donacionId = donacionID; receipt.depositoId = depositoID;
+            receipt.productoId = productoID; receipt.cantidad = cantidad;
+            registros.guardar(receipt);
+        }
+
         if (paquete.getId() == null) {
             throw new IllegalStateException("No se pudo identificar el paquete persistido");
         }
@@ -201,8 +248,8 @@ public class Fachada implements FachadaLogistica {
         publicarEvento("paquete", paquete.getId(), "UPSERT", snapshotPaquete(guardado.getId(), paquete));
         publicarEvento("deposito", guardado.getId(), "UPSERT", snapshotDeposito(guardado));
 
-        eventPublisher.publishEvent(
-            new DonacionRegistradaEvent(
+        if (matchmakingOutbox != null) {
+            matchmakingOutbox.guardar(
                 new DonacionPendienteMessage(
                     guardado.getId(),
                     paquete.getId(),
@@ -212,8 +259,8 @@ public class Fachada implements FachadaLogistica {
                     guardado.getTipoAlgoritmo(),
                     TraceContext.currentTraceId()
                 )
-            )
-        );
+            );
+        }
 
         DomainEvents.info(log,
             "donacion.registrada deposito={} paquete={} donacion={} producto={} cantidad={} algoritmo={}",
@@ -229,7 +276,6 @@ public class Fachada implements FachadaLogistica {
     }
 
     @Override
-    @Transactional
     public AsignacionDTO ejecutarMatchmaking(
         String depositoID,
         PaqueteDTO paqueteDTO,
@@ -241,7 +287,7 @@ public class Fachada implements FachadaLogistica {
             throw new BusinessRuleException("Paquete inválido");
         }
 
-        Deposito deposito = depositoRepo.findByIdForUpdate(depositoID)
+        Deposito deposito = depositoRepo.findById(depositoID)
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
 
         if (deposito.getTipoAlgoritmo() == null) {
@@ -256,23 +302,44 @@ public class Fachada implements FachadaLogistica {
             necesidadId -> cantidadAsignadaPorNecesidad(necesidadId)
         );
 
-        Paquete paquete = buscarPaquete(deposito, paqueteDTO.id());
-
-        return registrarResultadoInternamente(
-            deposito,
-            paquete,
-            resultado
-        );
+        String need = resultado.necesidad().map(n -> n.id()).orElse(null);
+        return enOperacion(need == null ? "paquete" : "necesidad", need == null ? paqueteDTO.id() : need, () -> {
+            var locked = depositoRepo.findByIdForUpdate(depositoID).orElseThrow();
+            var paquete = buscarPaquete(locked, paqueteDTO.id());
+            var existente = asignacionRepo.findByPaqueteId(paquete.getId());
+            if (existente.isPresent()) return mapper.toAsignacionDTO(existente.get());
+            if (paquete.getEstadoPaquete() != EstadoPaquete.PENDIENTE) return null;
+            var validado = resultado;
+            if (need != null) {
+                var vigente = fachadaDonadores instanceof ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente
+                    ? consultarNecesidad(need, paquete.getProducto())
+                    : new ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente.NecesidadVigente(
+                        necesidadesMateriales.stream().filter(n -> need.equals(n.id())).findFirst().orElseThrow(),
+                        0, inicioPeriodo(need));
+                validado = matchmakingService.procesar(locked.getTipoAlgoritmo(), List.of(vigente.necesidad()),
+                    paquete.getProducto(), paquete.getCantidad(), id -> comprometida(vigente));
+            }
+            return registrarResultadoInternamente(locked, paquete, validado);
+        });
     }
 
     @Override
-    @Transactional
     public void reportarEntrega(PaqueteDTO paqueteDTO) {
         if (paqueteDTO == null || paqueteDTO.id() == null) {
             throw new BusinessRuleException("Paquete inválido");
         }
 
         asegurarIntegraciones();
+
+        var referencia = asignacionRepo.findByPaqueteId(paqueteDTO.id())
+            .orElseThrow(() -> new ResourceNotFoundException("Asignación no encontrada"));
+        enOperacion("necesidad", referencia.getNecesidadId(), () -> {
+            entregarPaquete(paqueteDTO);
+            return null;
+        });
+    }
+
+    private void entregarPaquete(PaqueteDTO paqueteDTO) {
 
         Deposito deposito = encontrarDepositoPorPaquete(paqueteDTO.id());
         deposito = depositoRepo.findByIdForUpdate(deposito.getId())
@@ -285,18 +352,15 @@ public class Fachada implements FachadaLogistica {
             throw new ConflictException("La asignación no está en estado ASIGNADA");
         }
 
-        java.time.LocalDate inicio = inicioPeriodo(asignacion.getNecesidadId());
-        if (inicio != null && asignacion.getFecha().toLocalDate().isBefore(inicio))
-            throw new ConflictException("La asignación corresponde a un período anterior");
-
         Paquete paquete = buscarPaquete(deposito, paqueteDTO.id());
 
         asignacion.cambiarEstado(EstadoAsignacionEnum.COMPLETADA);
         asignacionRepo.save(asignacion);
 
-        fachadaDonadores.satisfacerNecesidad(
+        satisfacerEntrega(
             asignacion.getNecesidadId(),
-            asignacion.getCantidadAsignada()
+            asignacion.getCantidadAsignada(),
+            List.of(paqueteDTO.id())
         );
 
         paquete.marcarEntregado();
@@ -350,18 +414,46 @@ public class Fachada implements FachadaLogistica {
         this.fachadaDonaciones = fachadaDonaciones;
     }
 
-    @Transactional
     public AsignacionDTO registrarResultadoMatchmaking(
         ResultadoMatchmakingRequest request
     ) {
         return registrarResultadoMatchmakingDetallado(request).asignacion();
     }
 
-    @Transactional
     public MatchmakingRegistrationResult registrarResultadoMatchmakingDetallado(
         ResultadoMatchmakingRequest request
     ) {
         validarResultado(request);
+
+        var referencia = depositoRepo.findById(request.depositoId())
+            .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
+        var paqueteOriginal = buscarPaquete(referencia, request.paqueteId());
+        if (paqueteOriginal.getEstadoPaquete() == EstadoPaquete.PENDIENTE
+            && (long) request.cantidadAsignada() + request.cantidadSobrante() != paqueteOriginal.getCantidad())
+            throw new BusinessRuleException("El resultado no coincide con la cantidad original");
+
+        ResultadoMatchmakingRequest propuesta = request.tieneAsignacion() ? request : recalcularPropuesta(request);
+        // Release the former need lock before trying another candidate: never nest need locks.
+        for (int intento = 0; intento < 4; intento++) {
+            var actual = propuesta;
+            var resultado = enOperacion(actual.tieneAsignacion() ? "necesidad" : "paquete",
+                actual.tieneAsignacion() ? actual.necesidadId() : actual.paqueteId(),
+                () -> registrarResultadoBajoLock(actual));
+            if (resultado != null) return resultado;
+            propuesta = recalcularPropuesta(request);
+        }
+        // Contentions do not turn a valid donation into a poison message; stock remains reusable.
+        var sinAsignacion = new ResultadoMatchmakingRequest(request.depositoId(), request.paqueteId(), null,
+            0, cantidadPaquete(request));
+        return enOperacion("paquete", request.paqueteId(), () -> registrarResultadoBajoLock(sinAsignacion));
+    }
+
+    private MatchmakingRegistrationResult registrarResultadoBajoLock(ResultadoMatchmakingRequest request) {
+        ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente.NecesidadVigente vigente = null;
+        if (request.tieneAsignacion()) {
+            try { vigente = consultarNecesidad(request.necesidadId(), null); }
+            catch (ResourceNotFoundException obsoleta) { /* The worker's decision can legitimately be obsolete. */ }
+        }
 
         Deposito deposito = depositoRepo.findByIdForUpdate(request.depositoId())
             .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
@@ -400,7 +492,7 @@ public class Fachada implements FachadaLogistica {
 
         int cantidadOriginal = paquete.getCantidad();
 
-        if (request.cantidadAsignada() + request.cantidadSobrante() != cantidadOriginal) {
+        if ((long) request.cantidadAsignada() + request.cantidadSobrante() != cantidadOriginal) {
             throw new BusinessRuleException(
                 "El resultado no coincide con la cantidad original"
             );
@@ -423,6 +515,16 @@ public class Fachada implements FachadaLogistica {
         if (request.cantidadAsignada() <= 0 || request.necesidadId() == null) {
             throw new BusinessRuleException("Resultado de asignación inválido");
         }
+
+        if (vigente == null || !paquete.getProducto().equals(vigente.necesidad().productoSolicitadoID()))
+            return null;
+        int saldo = saldoNecesidad(vigente);
+        int asignable = Math.min(request.cantidadAsignada(), saldo);
+        if (vigente.necesidad().tipo() == ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum.RECURRENTE)
+            asignable = cantidadOriginal >= saldo ? saldo : 0;
+        if (asignable <= 0) return null;
+        request = new ResultadoMatchmakingRequest(request.depositoId(), request.paqueteId(), request.necesidadId(),
+            asignable, cantidadOriginal - asignable);
 
         paquete.setCantidad(request.cantidadAsignada());
         paquete.marcarAsignado();
@@ -478,7 +580,11 @@ public class Fachada implements FachadaLogistica {
 
         return asignacionRepo.findAll().stream()
             .filter(asignacion -> necesidadId.equals(asignacion.getNecesidadId()))
-            .filter(asignacion -> inicio == null || !asignacion.getFecha().toLocalDate().isBefore(inicio))
+            .filter(asignacion -> inicio == null
+                || asignacion.getEstado() == EstadoAsignacionEnum.ASIGNADA
+                || asignacion.getHistorial().stream().anyMatch(cambio ->
+                    cambio.getEstado() == EstadoAsignacionEnum.COMPLETADA
+                        && !cambio.getFecha().toLocalDate().isBefore(inicio)))
             .mapToInt(asignacion -> asignacion.getCantidadAsignada() == null
                 ? 0
                 : asignacion.getCantidadAsignada())
@@ -496,18 +602,60 @@ public class Fachada implements FachadaLogistica {
         return new StockDTO(productoId, cantidad);
     }
 
-    @Transactional
     public List<AsignacionDTO> asignarDesdeStock(
         String necesidadId,
         String productoId,
         Integer cantidadSolicitada
     ) {
+        return asignarDesdeStock(necesidadId, productoId, cantidadSolicitada, null);
+    }
+
+    public List<AsignacionDTO> asignarDesdeStock(String necesidadId, String productoId,
+        Integer cantidadSolicitada, String solicitudId) {
         validarId(necesidadId, "ID de necesidad inválido");
         validarId(productoId, "ID de producto inválido");
 
         if (cantidadSolicitada == null || cantidadSolicitada <= 0) {
             throw new BusinessRuleException("La cantidad solicitada debe ser positiva");
         }
+        if (solicitudId != null && (solicitudId.isBlank() || solicitudId.length() > 200))
+            throw new BusinessRuleException("Idempotency-Key inválida");
+        var claves = new ArrayList<String>();
+        claves.add(claveOperacion("necesidad", necesidadId));
+        if (solicitudId != null) claves.add(claveOperacion("solicitud-stock", solicitudId));
+        java.util.function.Supplier<List<AsignacionDTO>> operation = () -> {
+            if (solicitudId != null && registros != null) {
+                var recibo = registros.solicitud(solicitudId);
+                if (recibo != null) {
+                    if (!necesidadId.equals(recibo.necesidadId) || !productoId.equals(recibo.productoId)
+                        || !cantidadSolicitada.equals(recibo.cantidad))
+                        throw new ConflictException("La clave de stock ya fue utilizada con otros datos");
+                    return recibo.asignaciones.stream().map(id -> mapper.toAsignacionDTO(asignacionRepo.findById(id)
+                        .orElseThrow(() -> new ConflictException("La asignación del recibo ya no existe")))).toList();
+                }
+            }
+            var asignaciones = reservarDesdeStock(necesidadId, productoId, cantidadSolicitada);
+            if (solicitudId != null && registros != null) {
+                var recibo = new ar.edu.utn.dds.k3003.persistence.entity.SolicitudStockProcesada();
+                recibo.id = solicitudId; recibo.necesidadId = necesidadId; recibo.productoId = productoId;
+                recibo.cantidad = cantidadSolicitada;
+                recibo.asignaciones.addAll(asignaciones.stream().map(AsignacionDTO::id).toList());
+                registros.guardar(recibo);
+            }
+            return asignaciones;
+        };
+        return coordinacion == null ? operation.get() : coordinacion.ejecutar(claves, operation);
+    }
+
+    private List<AsignacionDTO> reservarDesdeStock(String necesidadId, String productoId, int cantidadSolicitada) {
+        var vigente = consultarNecesidad(necesidadId, productoId);
+        if (!productoId.equals(vigente.necesidad().productoSolicitadoID()))
+            throw new BusinessRuleException("El producto no coincide con la necesidad");
+        int saldo = saldoNecesidad(vigente);
+        if (saldo <= 0) return List.of();
+        boolean recurrente = vigente.necesidad().tipo()
+            == ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum.RECURRENTE;
+        if (recurrente && cantidadSolicitada < saldo) return List.of();
 
         List<Deposito> referencias = depositoRepo.findAll().stream()
             .sorted(Comparator.comparing(Deposito::getId))
@@ -532,7 +680,9 @@ public class Fachada implements FachadaLogistica {
             return List.of();
         }
 
-        int cantidadRestante = Math.min(cantidadSolicitada, stockDisponible);
+        if (recurrente && stockDisponible < saldo) return List.of();
+
+        int cantidadRestante = Math.min(saldo, Math.min(cantidadSolicitada, stockDisponible));
         List<AsignacionDTO> asignaciones = new ArrayList<>();
 
         for (Deposito deposito : depositos) {
@@ -696,6 +846,85 @@ public class Fachada implements FachadaLogistica {
         }
     }
 
+    private <T> T enOperacion(String tipo, String id, java.util.function.Supplier<T> operation) {
+        return coordinacion == null ? operation.get() : coordinacion.ejecutar(claveOperacion(tipo, id), operation);
+    }
+
+    private String claveOperacion(String tipo, String id) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(id.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return tipo + ":" + java.util.HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+
+    private void validarRecepcion(ar.edu.utn.dds.k3003.persistence.entity.RecepcionDonacion receipt,
+        String depositoId, String productoId, int cantidad) {
+        if (!depositoId.equals(receipt.depositoId) || !productoId.equals(receipt.productoId)
+            || cantidad != receipt.cantidad)
+            throw new ConflictException("La donación ya fue recibida con otros datos");
+    }
+
+    private ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente.NecesidadVigente consultarNecesidad(
+        String id, String productoId) {
+        if (fachadaDonadores == null) throw new ConflictException("La fachada de necesidades no está configurada");
+        if (fachadaDonadores instanceof ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente client)
+            return client.consultarNecesidad(id);
+        var necesidades = fachadaDonadores.obtenerNecesidadesInsatisfechasDe(productoId);
+        var need = necesidades == null ? null : necesidades.stream()
+            .filter(n -> n != null && id.equals(n.id())).findFirst().orElse(null);
+        if (need == null) throw new ResourceNotFoundException("Necesidad no encontrada");
+        return new ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente.NecesidadVigente(need, 0, inicioPeriodo(id));
+    }
+
+    private int comprometida(ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente.NecesidadVigente vigente) {
+        int pendientes = 0, entregadas = 0;
+        for (Asignacion a : asignacionRepo.findAll()) {
+            if (!vigente.necesidad().id().equals(a.getNecesidadId())) continue;
+            int cantidad = a.getCantidadAsignada() == null ? 0 : a.getCantidadAsignada();
+            if (a.getEstado() == EstadoAsignacionEnum.ASIGNADA) pendientes += cantidad;
+            else if (a.getEstado() == EstadoAsignacionEnum.COMPLETADA && (vigente.inicio() == null
+                || a.getHistorial().stream().anyMatch(c -> c.getEstado() == EstadoAsignacionEnum.COMPLETADA
+                    && !c.getFecha().toLocalDate().isBefore(vigente.inicio())))) entregadas += cantidad;
+        }
+        // DyE's received units and our completed assignments describe the same physical delivery.
+        return pendientes + Math.max(Math.max(0, vigente.recibida()), entregadas);
+    }
+
+    private int saldoNecesidad(ar.edu.utn.dds.k3003.integration.ConsultaNecesidadVigente.NecesidadVigente vigente) {
+        return Math.max(0, vigente.necesidad().cantidadObjetivo() - comprometida(vigente));
+    }
+
+    private int cantidadPaquete(ResultadoMatchmakingRequest request) {
+        var depot = depositoRepo.findById(request.depositoId())
+            .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
+        return buscarPaquete(depot, request.paqueteId()).getCantidad();
+    }
+
+    private ResultadoMatchmakingRequest recalcularPropuesta(ResultadoMatchmakingRequest request) {
+        var depot = depositoRepo.findById(request.depositoId())
+            .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
+        var packet = buscarPaquete(depot, request.paqueteId());
+        if (packet.getEstadoPaquete() != EstadoPaquete.PENDIENTE)
+            return new ResultadoMatchmakingRequest(request.depositoId(), request.paqueteId(), null, 0, packet.getCantidad());
+        if (fachadaDonadores == null) throw new ConflictException("La fachada de necesidades no está configurada");
+        var candidatas = fachadaDonadores.obtenerNecesidadesInsatisfechasDe(packet.getProducto());
+        var actuales = new ArrayList<NecesidadMaterialDTO>();
+        var comprometidas = new java.util.HashMap<String, Integer>();
+        for (var n : candidatas == null ? List.<NecesidadMaterialDTO>of() : candidatas) {
+            if (n == null || n.id() == null) continue;
+            try {
+                var vigente = consultarNecesidad(n.id(), packet.getProducto());
+                actuales.add(vigente.necesidad());
+                comprometidas.put(n.id(), comprometida(vigente));
+            } catch (ResourceNotFoundException removed) { /* Changed since the list was read. */ }
+        }
+        var result = matchmakingService.procesar(depot.getTipoAlgoritmo(), actuales, packet.getProducto(),
+            packet.getCantidad(), comprometidas);
+        return new ResultadoMatchmakingRequest(request.depositoId(), request.paqueteId(),
+            result.necesidad().map(n -> n.id()).orElse(null), result.cantidadAsignada(), result.cantidadSobrante());
+    }
+
     @Transactional
     public DepositoDTO modificarDeposito(String id, DepositoDTO dto) {
         if (dto == null || dto.nombre() == null || dto.nombre().isBlank()
@@ -748,7 +977,6 @@ public class Fachada implements FachadaLogistica {
             ? consulta.inicioPeriodo(necesidadId) : null;
     }
 
-    @Transactional
     public void reportarEntregaLote(List<String> paqueteIds) {
         if (paqueteIds == null || paqueteIds.isEmpty() || paqueteIds.stream().anyMatch(id -> id == null || id.isBlank())
             || paqueteIds.stream().distinct().count() != paqueteIds.size()) throw new BusinessRuleException("Paquetes del lote inválidos o repetidos");
@@ -758,9 +986,13 @@ public class Fachada implements FachadaLogistica {
         String necesidad = asignaciones.getFirst().getNecesidadId();
         if (asignaciones.stream().anyMatch(a -> !necesidad.equals(a.getNecesidadId()) || a.getEstado() != EstadoAsignacionEnum.ASIGNADA))
             throw new ConflictException("El lote debe contener asignaciones pendientes de una misma necesidad");
-        java.time.LocalDate inicio = inicioPeriodo(necesidad);
-        if (inicio != null && asignaciones.stream().anyMatch(a -> a.getFecha().toLocalDate().isBefore(inicio)))
-            throw new ConflictException("El lote contiene una asignación de un período anterior");
+        enOperacion("necesidad", necesidad, () -> {
+            entregarLote(paqueteIds, necesidad);
+            return null;
+        });
+    }
+
+    private void entregarLote(List<String> paqueteIds, String necesidad) {
         java.util.Map<String, Deposito> depositos = new java.util.TreeMap<>();
         for (String id : paqueteIds) { Deposito ref = encontrarDepositoPorPaquete(id); depositos.put(ref.getId(), ref); }
         for (String id : new ArrayList<>(depositos.keySet())) depositos.put(id, depositoRepo.findByIdForUpdate(id)
@@ -769,7 +1001,7 @@ public class Fachada implements FachadaLogistica {
         if (confirmadas.stream().anyMatch(a -> a.getEstado() != EstadoAsignacionEnum.ASIGNADA))
             throw new ConflictException("Una asignación del lote ya fue entregada");
         int cantidad = confirmadas.stream().mapToInt(Asignacion::getCantidadAsignada).sum();
-        fachadaDonadores.satisfacerNecesidad(necesidad, cantidad);
+        satisfacerEntrega(necesidad, cantidad, paqueteIds);
         java.util.Set<String> donaciones = new java.util.HashSet<>();
         for (Asignacion asignacion : confirmadas) {
             Paquete paquete = depositos.values().stream().flatMap(d -> d.getStockActual().stream())
@@ -789,7 +1021,7 @@ public class Fachada implements FachadaLogistica {
         depositos.values().forEach(deposito -> publicarEvento(
             "deposito", deposito.getId(), "UPSERT", snapshotDeposito(deposito)));
         for (String id : donaciones) aceptarDonacion(id);
-        asignaciones.forEach(this::registrarDuracionEntrega);
+        confirmadas.forEach(this::registrarDuracionEntrega);
         DomainEvents.info(log, "entrega.lote_reportada necesidad={} paquetes={} cantidad={}", necesidad, paqueteIds.size(), cantidad);
     }
 
@@ -797,6 +1029,18 @@ public class Fachada implements FachadaLogistica {
         var donacion = fachadaDonaciones.buscarDonacionPorID(id);
         if (donacion == null || donacion.estado() != EstadoDonacionEnum.CONQUEJA)
             fachadaDonaciones.cambiarEstadoDeDonacion(id, EstadoDonacionEnum.ACEPTADA);
+    }
+
+    /** The identity survives local rollback and ignores the order of packages in a batch. */
+    private void satisfacerEntrega(String necesidadId, int cantidad, List<String> paqueteIds) {
+        if (fachadaDonadores instanceof ar.edu.utn.dds.k3003.integration.SatisfaccionIdempotente client) {
+            String paquetes = String.join(",", paqueteIds.stream().sorted().toList());
+            String entregaId = "entrega:" + necesidadId + ":"
+                + java.util.UUID.nameUUIDFromBytes(paquetes.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            client.satisfacerEntrega(necesidadId, cantidad, entregaId);
+        } else {
+            fachadaDonadores.satisfacerNecesidad(necesidadId, cantidad);
+        }
     }
 
     private void registrarDuracionEntrega(Asignacion asignacion) {
@@ -828,9 +1072,15 @@ public class Fachada implements FachadaLogistica {
 
     @Transactional
     public int recuperarMatchmakingPendiente() {
+        if (matchmakingOutbox == null) {
+            throw new ConflictException("La mensajería de matchmaking está deshabilitada");
+        }
         int recuperados = 0;
 
-        for (Deposito deposito : depositoRepo.findAll()) {
+        for (Deposito referencia : depositoRepo.findAll().stream()
+            .sorted(Comparator.comparing(Deposito::getId)).toList()) {
+            Deposito deposito = depositoRepo.findByIdForUpdate(referencia.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Depósito no encontrado"));
             if (deposito.getTipoAlgoritmo() == null) {
                 boolean tienePendientes = deposito.getStockActual().stream()
                     .anyMatch(paquete -> paquete.getEstadoPaquete() == EstadoPaquete.PENDIENTE);
@@ -857,7 +1107,7 @@ public class Fachada implements FachadaLogistica {
                     deposito.getTipoAlgoritmo(),
                     TraceContext.currentTraceId()
                 );
-                eventPublisher.publishEvent(new DonacionRegistradaEvent(mensaje));
+                matchmakingOutbox.recuperar(mensaje);
                 recuperados++;
             }
         }
